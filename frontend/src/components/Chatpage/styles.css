@@ -1,0 +1,20 @@
+/* .messages {
+    display: flex;
+    flex-direction: column;
+    overflow-y: scroll;
+    scrollbar-width: none;
+} */
+
+.messages {
+    display: flex;
+    flex-direction: column;
+    overflow-y: scroll;
+    scrollbar-width: none;
+}
+
+.typing-indicator-container {
+    background: transparent;
+    padding-left: 20px;
+    padding-bottom: 8px;
+    margin-top: 30px;
+}

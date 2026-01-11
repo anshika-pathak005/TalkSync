@@ -16,7 +16,11 @@ import Lottie from 'react-lottie'
 import animationData from '../../animations/typing.json'
 
 // it is the backend endpoint as of now , but it will be changed when the backend is deployed
-const ENDPOINT = "http://localhost:5000";
+// const ENDPOINT = "http://localhost:5000";
+const ENDPOINT = process.env.NODE_ENV === 'production'
+    ? window.location.origin
+    : "http://localhost:5000";
+    
 var socket, selectedChatCompare;
 
 const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {

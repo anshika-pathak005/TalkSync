@@ -1,147 +1,99 @@
-import { Button, FormControl, InputGroup, InputRightElement, VStack } from "@chakra-ui/react";
-import { Input } from "@chakra-ui/react";
-import { FormLabel } from "@chakra-ui/react";
-import React from "react";
-import { useState } from "react";
-import { useToast } from "@chakra-ui/react";
+import React, { useState } from "react";
 import axios from "axios";
 import { useHistory } from "react-router-dom";
+import { motion } from "framer-motion";
+import {
+    User,
+    Mail,
+    Lock,
+    Eye,
+    EyeOff,
+    ArrowRight,
+    ImagePlus,
+    CheckCircle2,
+} from "lucide-react";
+import Input from "../ui/Input";
+import Button from "../ui/Button";
 import { ChatState } from "../../context/ChatProvider";
 
-
 const SignUp = () => {
-    // defining the states for the form inputs
-    const [show, setShow] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    //   if show clicked then inverse the value of show
-    // function to handle the show/hide of password
+
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [pic, setPic] = useState("");
-    // for loading state
+    const [picName, setPicName] = useState("");
+
+    const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
-    const [loadingText, setLoadingText] = useState("Sign Up");
-    const toast = useToast();
+    const [loadingText, setLoadingText] = useState("Create account");
+    const [message, setMessage] = useState(null);
+
     const history = useHistory();
+    const { setUser } = ChatState();
 
-    const {setUser} = ChatState();
+    const showMessage = (type, text) => {
+        setMessage({ type, text });
+        setTimeout(() => setMessage(null), 3000);
+    };
 
-    const handleShowPassword = () => setShowPassword(!showPassword);
-    const handleShowConfirmPassword = () => setShowConfirmPassword(!showConfirmPassword);
+    const validate = () => {
+        const errs = {};
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!name) errs.name = "Name is required";
+        if (!email) errs.email = "Email is required";
+        else if (!emailRegex.test(email)) errs.email = "Enter a valid email address";
+        if (!password) errs.password = "Password is required";
+        if (!confirmPassword) errs.confirmPassword = "Please confirm your password";
+        else if (password !== confirmPassword)
+            errs.confirmPassword = "Passwords do not match";
+
+        setErrors(errs);
+        return Object.keys(errs).length === 0;
+    };
 
     const submitHandler = async () => {
+        if (!validate()) return;
+
         setLoading(true);
         setLoadingText("Registering...");
 
-        // form validation
-
-        if (!name || !email || !password || !confirmPassword) {
-            toast({
-                title: "Please fill all the fields",
-                status: "warning",
-                duration: 3000,
-                isClosable: true,
-                position: "bottom",
-            });
-            setLoading(false);
-            setLoadingText("Sign Up");
-            return;
-        }
-
-        // Email validation
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            toast({
-                title: "Invalid Email",
-                description: "Please enter a valid email address",
-                status: "warning",
-                duration: 3000,
-                isClosable: true,
-                position: "bottom",
-            });
-            setLoading(false);
-            setLoadingText("Sign Up");
-            return;
-        }
-
-        if (password !== confirmPassword) {
-            toast({
-                title: "Password do no Match",
-                status: "warning",
-                duration: 3000,
-                isClosable: true,
-                position: "bottom",
-            });
-            setLoading(false);
-            setLoadingText("Sign Up");
-            return;
-        }
-
-        // if everything is fine then proceed further
         try {
-            const config = {
-                headers: {
-                    "Content-type": "application/json",
-                },
-            };
+            const config = { headers: { "Content-type": "application/json" } };
+            const { data } = await axios.post(
+                "/api/user",
+                { name, email, password, pic },
+                config
+            );
 
-            const { data } = await axios.post("/api/user", { name, email, password, pic }, config);
-
-            toast({
-                title: "Registration Successful",
-                status: "success",
-                duration: 3000,
-                isClosable: true,
-                position: "bottom",
-            });
-
-            console.log("hello its done")
+            showMessage("success", "Registration Successful");
             localStorage.setItem("userInfo", JSON.stringify(data));
             setUser(data);
             setLoading(false);
-            setLoadingText("Sign Up");
-
+            setLoadingText("Create account");
             history.push("/chats");
-
         } catch (error) {
-            console.log("hello its not done")
-
-            toast({
-                title: "Error Occurred!",
-                description: error.response.data.message,
-                status: "error",
-                duration: 3000,
-                isClosable: true,
-                position: "bottom",
-            });
+            showMessage("error", error.response?.data?.message || "Error Occurred!");
             setLoading(false);
-            setLoadingText("Sign Up");
-            return;
+            setLoadingText("Create account");
         }
-    }
+    };
 
     const postDetails = (pics) => {
-        setLoading(true);
-        setLoadingText("Uploading Image...");
-
-        // if no picture is selected
-        if (pics === undefined) {
-            toast({
-                title: "Please select an Image!",
-                status: "warning",
-                duration: 3000,
-                isClosable: true,
-                position: "bottom",
-            });
-            setLoading(false);
-            setLoadingText("Sign Up");
+        if (!pics) {
+            showMessage("warning", "Please select an image!");
             return;
         }
-        // if the picture is selected
+
         if (pics.type === "image/jpeg" || pics.type === "image/png") {
+            setLoading(true);
+            setLoadingText("Uploading image...");
+            setPicName(pics.name);
+
             const data = new FormData();
             data.append("file", pics);
             data.append("upload_preset", "TalkSync");
@@ -150,118 +102,146 @@ const SignUp = () => {
             fetch("https://api.cloudinary.com/v1_1/do0itnacu/image/upload", {
                 method: "post",
                 body: data,
-            }).then((res) => res.json())
+            })
+                .then((res) => res.json())
                 .then((data) => {
                     setPic(data.url.toString());
                     setLoading(false);
-                    setLoadingText("Sign Up");
-                    console.log(data.url.toString());
-                }).catch((err) => {
-                    console.log(err);
-                    setLoading(false);
-                    setLoadingText("Sign Up");
+                    setLoadingText("Create account");
                 })
+                .catch(() => {
+                    setLoading(false);
+                    setLoadingText("Create account");
+                    showMessage("error", "Image upload failed");
+                });
         } else {
-            toast({
-                title: "Please select an Image!",
-                status: "warning",
-                duration: 3000,
-                isClosable: true,
-                position: "bottom",
-            });
-            setLoading(false);
-            setLoadingText("Sign Up");
-            return;
+            showMessage("warning", "Please select a valid image (jpeg/png)");
         }
     };
 
     return (
-        <VStack spacing="5px">
+        <div className="flex flex-col gap-5">
+            {message && (
+                <div
+                    className={`text-sm px-4 py-2 rounded-lg text-center font-medium
+            ${message.type === "error" ? "bg-red-100 text-red-700" : ""}
+            ${message.type === "success" ? "bg-green-100 text-green-700" : ""}
+            ${message.type === "warning" ? "bg-yellow-100 text-yellow-700" : ""}
+          `}
+                >
+                    {message.text}
+                </div>
+            )}
 
-            <FormControl id="name" spacing="5px">
-                <FormLabel>Name:</FormLabel>
+            <div className="animate-fade-up delay-2">
                 <Input
-                    isRequired={true}
-                    onChange={(e) => {
-                        setName(e.target.value);
-                    }}
-                    placeholder="Enter your Name"
-                ></Input>
-            </FormControl>
+                    label="Full name"
+                    type="text"
+                    placeholder="Jane Doe"
+                    autoComplete="name"
+                    leftIcon={<User size={15} />}
+                    error={errors.name}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                />
+            </div>
 
-            <FormControl id="singup-email" spacing="5px">
-                <FormLabel>Email:</FormLabel>
+            <div className="animate-fade-up delay-2">
                 <Input
-                    onChange={(e) => {
-                        setEmail(e.target.value);
-                    }}
-                    placeholder="Enter your Email"
-                ></Input>
-            </FormControl>
+                    label="Email address"
+                    type="email"
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    leftIcon={<Mail size={15} />}
+                    error={errors.email}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                />
+            </div>
 
-            <FormControl id="signup-password" spacing="5px">
-                <FormLabel>Password:</FormLabel>
-                <InputGroup>
-                    <Input
-                        type={showPassword ? "text" : "password"}
-                        isRequired={true}
-                        onChange={(e) => {
-                            setPassword(e.target.value);
-                        }}
-                        placeholder="Enter your Password"
-                    ></Input>
-                    <InputRightElement width={"4rem"}>
-                        <Button h={"1.5rem"} size={"sm"} onClick={handleShowPassword}>
-                            {showPassword ? "Hide" : "Show"}
-                        </Button>
-                    </InputRightElement>
-                </InputGroup>
-            </FormControl>
-
-            {/* confirm password here */}
-            <FormControl id="confirm-pass" spacing="5px">
-                <FormLabel>Confirm Password:</FormLabel>
-                <InputGroup>
-                    <Input
-                        type={showConfirmPassword ? "text" : "password"}
-                        isRequired={true}
-                        onChange={(e) => {
-                            setConfirmPassword(e.target.value);
-                        }}
-                        placeholder="Enter your Password"
-                    ></Input>
-                    <InputRightElement width={"4rem"}>
-                        <Button h={"1.5rem"} size={"sm"} onClick={handleShowConfirmPassword}>
-                            {showConfirmPassword ? "Hide" : "Show"}
-                        </Button>
-                    </InputRightElement>
-                </InputGroup>
-            </FormControl>
-
-            <FormControl id="pic" spacing="5px">
-                <FormLabel>Upload your Picture:</FormLabel>
+            <div className="animate-fade-up delay-3">
                 <Input
-                    type="file"
-                    p={1.5}
-                    accept="image/*"
-                    onChange={(e) => {
-                        postDetails(e.target.files[0]);
-                    }}
-                ></Input>
-            </FormControl>
+                    label="Password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    autoComplete="new-password"
+                    leftIcon={<Lock size={15} />}
+                    rightIcon={
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword((v) => !v)}
+                            className="text-saltwater hover:text-viridian transition-colors"
+                        >
+                            {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                        </button>
+                    }
+                    error={errors.password}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                />
+            </div>
 
-            <Button
-                colorScheme="purple"
-                width="80%"
-                style={{ marginTop: 15 }}
-                isLoading={loading}
-                loadingText={loadingText}
-                onClick={submitHandler}
-            >
-                Register
-            </Button>
+            <div className="animate-fade-up delay-3">
+                <Input
+                    label="Confirm password"
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    autoComplete="new-password"
+                    leftIcon={<Lock size={15} />}
+                    rightIcon={
+                        <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword((v) => !v)}
+                            className="text-saltwater hover:text-viridian transition-colors"
+                        >
+                            {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                        </button>
+                    }
+                    error={errors.confirmPassword}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+            </div>
 
-        </VStack>
+            {/* Profile picture upload */}
+            <div className="animate-fade-up delay-4 flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-viridian">
+                    Profile picture (optional)
+                </label>
+                <label
+                    className="flex items-center gap-3 cursor-pointer px-4 py-3 rounded-xl bg-white
+            border border-dashed border-nordic shadow-card hover:border-cerulean
+            transition-colors duration-200"
+                >
+                    {pic ? (
+                        <CheckCircle2 size={18} className="text-green-500 shrink-0" />
+                    ) : (
+                        <ImagePlus size={18} className="text-saltwater shrink-0" />
+                    )}
+                    <span className="text-sm text-gray-500 truncate">
+                        {picName || "Click to upload a profile picture"}
+                    </span>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => postDetails(e.target.files[0])}
+                    />
+                </label>
+            </div>
+
+            <motion.div whileTap={{ scale: 0.98 }} className="animate-fade-up delay-5 mt-1">
+                <Button
+                    className="w-full"
+                    size="lg"
+                    isLoading={loading}
+                    rightIcon={!loading && <ArrowRight size={16} />}
+                    onClick={submitHandler}
+                >
+                    {loading ? loadingText : "Create account"}
+                </Button>
+            </motion.div>
+        </div>
     );
 };
 

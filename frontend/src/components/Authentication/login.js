@@ -1,141 +1,129 @@
-import { Button, FormControl, InputGroup, InputRightElement, VStack } from "@chakra-ui/react";
-import { Input } from "@chakra-ui/react";
-import { FormLabel } from "@chakra-ui/react";
-// import { connect } from "mongoose";
-import React from "react";
-import { useState } from "react";
-import { useToast } from "@chakra-ui/react";
+import React, { useState } from "react";
 import axios from "axios";
 import { useHistory } from "react-router-dom";
+import { motion } from "framer-motion";
+import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
+import Input from "../ui/Input";
+import Button from "../ui/Button";
 import { ChatState } from "../../context/ChatProvider";
 
-
 const Login = () => {
-  // defining the states for the form inputs
   const [show, setShow] = useState(false);
-  //   if show clicked then inverse the value of show
-  // function to handle the show/hide of password
-  const handleshowClick = () => setShow(!show);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading,setLoading]=useState(false);
-  const toast = useToast();
-  const history=useHistory();
-  // because when user logs in we need to set the user to that user
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState(null);
+
+  const history = useHistory();
   const { setUser } = ChatState();
 
+  const showMessage = (type, text) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), 3000);
+  };
 
-  
+  const validate = () => {
+    const errs = {};
+    if (!email) errs.email = "Email is required";
+    if (!password) errs.password = "Password is required";
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
   const submitHandler = async () => {
+    if (!validate()) return;
     setLoading(true);
-    // if fields are empty
-    if (!email || !password) {
-      toast({
-        title: "Please fill all the fields",
-        status: "warning",
-        duration: 3000,
-        isClosable: true,
-        position: "bottom",
-      });
-      setLoading(false);
-      return;
-    }
 
-    // if validation is ok then send the request to the server
     try {
-      const config = {
-        headers: {
-          "Content-type": "application/json",
-        },
-      };
+      const config = { headers: { "Content-type": "application/json" } };
       const { data } = await axios.post(
         "/api/user/login",
         { email, password },
         config
       );
-      // console.log(data);
 
-      // show success toast
-      toast({
-        title: "Login Successful",
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-        position: "bottom",
-      });
-
-      // save the user info in local storage
+      showMessage("success", "Login Successful");
       localStorage.setItem("userInfo", JSON.stringify(data));
-      setLoading(false);
-
-      // setting this data to user
       setUser(data);
-
-      // push to chat page
-      history.push("/chats");
-
-    } catch (error) {
-      toast({
-        title: "Error Occurred!",
-        description: error.response.data.message,
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-        position: "bottom",
-      });
       setLoading(false);
-
+      history.push("/chats");
+    } catch (error) {
+      showMessage("error", error.response?.data?.message || "Error Occurred!");
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <VStack spacing="5px">
+    <div className="flex flex-col gap-5">
+      {message && (
+        <div
+          className={`text-sm px-4 py-2 rounded-lg text-center font-medium
+            ${message.type === "error" ? "bg-red-100 text-red-700" : ""}
+            ${message.type === "success" ? "bg-green-100 text-green-700" : ""}
+            ${message.type === "warning" ? "bg-yellow-100 text-yellow-700" : ""}
+          `}
+        >
+          {message.text}
+        </div>
+      )}
 
-      <FormControl id="login-email" spacing="5px">
-        <FormLabel>Email:</FormLabel>
+      <div className="animate-fade-up delay-2">
         <Input
-          onChange={(e) => {
-            setEmail(e.target.value);
-          }}
-          placeholder="Enter your Email"
-        ></Input>
-      </FormControl>
+          label="Email address"
+          type="email"
+          placeholder="you@example.com"
+          autoComplete="email"
+          leftIcon={<Mail size={15} />}
+          error={errors.email}
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+      </div>
 
-      <FormControl id="login-password" spacing="5px">
-        <FormLabel>Password:</FormLabel>
-        <InputGroup>
-          <Input
-            type={show ? "text" : "password"}
-            isRequired={true}
-            onChange={(e) => {
-              setPassword(e.target.value);
-            }}
-            placeholder="Enter your Password"
-          ></Input>
-          <InputRightElement width={"4rem"}>
-            <Button h={"1.5rem"} size={"sm"} onClick={handleshowClick}>
-              {show ? "Hide" : "Show"}
-            </Button>
-          </InputRightElement>
-        </InputGroup>
-      </FormControl>
+      <div className="animate-fade-up delay-3">
+        <Input
+          label="Password"
+          type={show ? "text" : "password"}
+          placeholder="••••••••"
+          autoComplete="current-password"
+          leftIcon={<Lock size={15} />}
+          rightIcon={
+            <button
+              type="button"
+              onClick={() => setShow((v) => !v)}
+              className="text-saltwater hover:text-viridian transition-colors"
+            >
+              {show ? <EyeOff size={15} /> : <Eye size={15} />}
+            </button>
+          }
+          error={errors.password}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <div className="mt-1.5 flex justify-end">
+          <button
+            type="button"
+            className="text-xs text-cerulean hover:text-viridian font-semibold transition-colors"
+          >
+            Forgot password?
+          </button>
+        </div>
+      </div>
 
-      <Button
-        colorScheme="purple"
-        width="80%"
-        style={{ marginTop: 15 }}
-        isLoading={loading}
-        loadingText="Logging In"
-      onClick={submitHandler}
-      >
-        Login
-      </Button>
-
-
-
-    </VStack>
+      <motion.div whileTap={{ scale: 0.98 }} className="animate-fade-up delay-4 mt-1">
+        <Button
+          className="w-full"
+          size="lg"
+          isLoading={loading}
+          rightIcon={<ArrowRight size={16} />}
+          onClick={submitHandler}
+        >
+          Sign In
+        </Button>
+      </motion.div>
+    </div>
   );
 };
-
 
 export default Login;

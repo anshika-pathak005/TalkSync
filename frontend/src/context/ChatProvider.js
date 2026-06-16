@@ -26,9 +26,9 @@ const ChatProvider = ({ children }) => {
         setUser(userInfo);
 
         // if user is not logged in redirect to login page
-        if (!userInfo) {
-            history.push("/");
-        }
+        // if (!userInfo) {
+        //     history.push("/");
+        // }
     }, [history]);
 
     return (

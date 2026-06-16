@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "nodemon backend/server.js",
-    "build" : "npm install --legacy-peer-deps && npm install --legacy-peer-deps --prefix frontend && npm run build --prefix frontend"
+    "build": "npm install --legacy-peer-deps && npm install --legacy-peer-deps --prefix frontend && npm run build --prefix frontend"
   },
   "author": "Anshika Pathak",
   "license": "ISC",
@@ -20,6 +20,7 @@
     "mongoose": "^9.0.0",
     "nodemon": "^3.1.11",
     "react-router-dom": "^7.10.1",
-    "socket.io": "^4.8.3"
+    "socket.io": "^4.8.3",
+    "tailwindcss": "^4.3.1"
   }
 }

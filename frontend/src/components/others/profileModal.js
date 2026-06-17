@@ -1,232 +1,256 @@
-// when user clicks on the avatar, it should show his profile details
-// we will create a modal for that
-
-import React from 'react'
-import { useDisclosure } from '@chakra-ui/hooks'
-import {
-    Button,
-    Modal,
-    ModalOverlay,
-    ModalContent,
-    ModalHeader,
-    ModalFooter,
-    ModalBody,
-    ModalCloseButton,
-    IconButton,
-} from '@chakra-ui/react'
-import { ViewIcon } from '@chakra-ui/icons'
-import {Image,Text} from "@chakra-ui/react";
-import ChangePasswordModal from "./ChangePasswordModal";
-import {
-    Box,
-    Spinner,
-    useToast,
-} from "@chakra-ui/react";
-import { EditIcon } from "@chakra-ui/icons";
-import { useRef, useState } from "react";
+import React, { useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { X, Eye, Edit2, Loader2, Mail, User, KeyRound } from "lucide-react";
 import axios from "axios";
 import { ChatState } from "../../context/ChatProvider";
+import ChangePasswordModal from "./ChangePasswordModal";
 
+const ProfileModal = ({ user, children, isOpen: controlledOpen, onClose: controlledClose }) => {
+    // support both controlled (from SideBar) and uncontrolled (children trigger) usage
+    const [internalOpen, setInternalOpen] = useState(false);
+    const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
+    const onOpen = () => setInternalOpen(true);
+    const onClose = controlledClose || (() => setInternalOpen(false));
 
-const ProfileModal = ({ user, children }) => {
-    const { isOpen, onOpen, onClose } = useDisclosure()
-
-    const {
-        isOpen: isPwdOpen,
-        onOpen: onPwdOpen,
-        onClose: onPwdClose,
-    } = useDisclosure();
+    const [pwdOpen, setPwdOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [message, setMessage] = useState(null);
 
     const fileInputRef = useRef(null);
-    const [loading, setLoading] = useState(false);
-    const toast = useToast();
     const { setUser } = ChatState();
 
-    const handleEditClick = () => {
-        fileInputRef.current.click();
+    const showMessage = (type, text) => {
+        setMessage({ type, text });
+        setTimeout(() => setMessage(null), 3000);
     };
 
     const postDetails = async (pics) => {
         if (!pics) return;
-
         if (pics.type !== "image/jpeg" && pics.type !== "image/png") {
-            toast({
-                title: "Only JPG/PNG images allowed",
-                status: "warning",
-                duration: 3000,
-                isClosable: true,
-            });
+            showMessage("warning", "Only JPG/PNG images allowed");
             return;
         }
-
-        const updateProfilePic = async (picUrl) => {
-            try {
-                const config = {
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${user.token}`,
-                    },
-                };
-
-                const { data } = await axios.put(
-                    "/api/user/update-pic",
-                    { pic: picUrl },
-                    config
-                );
-
-                setUser(data);
-                localStorage.setItem("userInfo", JSON.stringify(data));
-
-                toast({
-                    title: "Profile picture updated",
-                    status: "success",
-                    duration: 3000,
-                });
-
-                setLoading(false);
-            } catch (error) {
-                setLoading(false);
-                toast({
-                    title: "Failed to update picture",
-                    status: "error",
-                });
-            }
-        };
-
 
         try {
             setLoading(true);
 
-            const data = new FormData();
-            data.append("file", pics);
-            data.append("upload_preset", "TalkSync");
-            data.append("cloud_name", "do0itnacu");
+            const formData = new FormData();
+            formData.append("file", pics);
+            formData.append("upload_preset", "TalkSync");
+            formData.append("cloud_name", "do0itnacu");
 
             const res = await fetch(
                 "https://api.cloudinary.com/v1_1/do0itnacu/image/upload",
-                {
-                    method: "post",
-                    body: data,
-                }
+                { method: "post", body: formData }
+            );
+            const cloudData = await res.json();
+
+            const config = {
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${user.token}`,
+                },
+            };
+
+            const { data } = await axios.put(
+                "/api/user/update-pic",
+                { pic: cloudData.url },
+                config
             );
 
-            const cloudData = await res.json();
-            updateProfilePic(cloudData.url);
+            setUser(data);
+            localStorage.setItem("userInfo", JSON.stringify(data));
+            showMessage("success", "Profile picture updated!");
+            setLoading(false);
         } catch (error) {
             setLoading(false);
-            toast({
-                title: "Image upload failed",
-                status: "error",
-            });
+            showMessage("error", "Failed to update picture");
         }
     };
 
+    // is this the logged-in user's own profile?
+    const { user: loggedInUser } = ChatState();
+    const isOwnProfile = loggedInUser?._id === user?._id;
 
     return (
         <>
-
-            {/* // Use children as the modal trigger if provided, otherwise show a default "View Profile" button to open the modal.*/}
-            {children ? (
-                <span onClick={onOpen}>{children}</span>
-            ) : (
-                <IconButton d={{ base: "flex" }} icon={<ViewIcon />} onClick={onOpen}>View Profile</IconButton>
+            {/* Trigger */}
+            {children && (
+                <span onClick={onOpen} className="cursor-pointer">
+                    {children}
+                </span>
             )}
 
-            <Modal isOpen={isOpen} onClose={onClose}>
-                <ModalOverlay />
-                <ModalContent>
-                    <ModalHeader
-                        fontSize="35px"
-                        display="flex"
-                        justifyContent="center"
-                        textTransform="capitalize"
-                    >{user.name}</ModalHeader>
-                    <ModalCloseButton />
-                    <ModalBody>
-                        {/* here we will hai user picture */}
-                        {/* <Image
-                            borderRadius="full"
-                            boxSize="150px"
-                            src={user.pic}
-                            alt={user.name}
-                            margin="auto"
-                        /> */}
+            {/* if no children and no controlled open — show eye icon trigger */}
+            {!children && controlledOpen === undefined && (
+                <button
+                    onClick={onOpen}
+                    className="p-2 rounded-lg hover:bg-swan text-saltwater
+            hover:text-viridian transition-colors"
+                >
+                    <Eye size={18} />
+                </button>
+            )}
 
-                        <Box position="relative" w="150px" mx="auto">
-                            <Image
-                                borderRadius="full"
-                                boxSize="150px"
-                                objectFit="cover"
-                                src={user.pic}
-                                alt={user.name}
-                            />
+            <AnimatePresence>
+                {isOpen && (
+                    <>
+                        {/* Backdrop */}
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={onClose}
+                            className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50"
+                        />
 
-                            {children && (
-                                <>
-                                    <IconButton
-                                        icon={loading ? <Spinner size="sm" /> : <EditIcon />}
-                                        size="sm"
-                                        colorScheme="purple"
-                                        position="absolute"
-                                        bottom="5px"
-                                        right="5px"
-                                        borderRadius="full"
-                                        onClick={handleEditClick}
-                                        isDisabled={loading}
-                                    />
-
-                                    <input
-                                        type="file"
-                                        hidden
-                                        ref={fileInputRef}
-                                        accept="image/*"
-                                        onChange={(e) => postDetails(e.target.files[0])}
-                                    />
-                                </>
-                            )}
-
-                            
-                        </Box>
-
-
-                        <Text
-                            fontSize={{ base: "15px", md: "25px" }}
-                            display="flex"
-                            justifyContent="center"
-                            marginTop="20px"
+                        {/* Modal */}
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 28 }}
+                            className="fixed inset-0 z-50 flex items-center justify-center px-4"
+                            onClick={(e) => e.stopPropagation()}
                         >
-                            Email: {user.email}
-                        </Text>
+                            <div className="w-full max-w-sm bg-white rounded-2xl shadow-card-lg
+                border border-nordic/40 overflow-hidden">
 
-                       
-                    </ModalBody>
+                                {/* Header */}
+                                <div className="flex items-center justify-between px-6 py-4
+                  border-b border-nordic/30 bg-gradient-to-r from-peacock/10 to-cerulean/5">
+                                    <h2 className="font-display text-viridian text-xl">
+                                        {isOwnProfile ? "My Profile" : `${user.name}'s Profile`}
+                                    </h2>
+                                    <button
+                                        onClick={onClose}
+                                        className="p-1.5 rounded-lg hover:bg-swan text-saltwater
+                      hover:text-viridian transition-colors"
+                                    >
+                                        <X size={18} />
+                                    </button>
+                                </div>
 
-                    <ChangePasswordModal
-                        isOpen={isPwdOpen}
-                        onClose={onPwdClose}
-                    />
+                                {/* Body */}
+                                <div className="px-6 py-6 flex flex-col items-center gap-5">
+                                    {/* Toast message */}
+                                    {message && (
+                                        <div className={`w-full text-sm px-4 py-2 rounded-lg text-center font-medium
+                      ${message.type === "error" ? "bg-red-100 text-red-700" : ""}
+                      ${message.type === "success" ? "bg-green-100 text-green-700" : ""}
+                      ${message.type === "warning" ? "bg-yellow-100 text-yellow-700" : ""}
+                    `}>
+                                            {message.text}
+                                        </div>
+                                    )}
 
-                    <ModalFooter justifyContent="space-between">
-                        {children && (
-                            <Button colorScheme="purple" mr={3} onClick={onPwdOpen}>
-                                Change Password
-                            </Button>
-                        )}
-                        
-                        <Button colorScheme='purple' mr={3} onClick={onClose}>
-                            Close
-                        </Button>
+                                    {/* Avatar */}
+                                    <div className="relative">
+                                        <div className="w-28 h-28 rounded-full overflow-hidden border-4
+                      border-nordic shadow-card-lg bg-swan flex items-center justify-center">
+                                            {user.pic ? (
+                                                <img
+                                                    src={user.pic}
+                                                    alt={user.name}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <span className="text-4xl font-display text-viridian">
+                                                    {user.name?.charAt(0)?.toUpperCase()}
+                                                </span>
+                                            )}
+                                        </div>
 
-                        
-                        {/* <Button variant='ghost'>Secondary Action</Button> */}
-                    </ModalFooter>
-                    {/* <ChangePasswordModal
-                        isOpen={isPwdOpen}
-                        onClose={onPwdClose}
-                    /> */}
-                </ModalContent>
-            </Modal>
-        </>)
-}
+                                        {/* Edit button — only on own profile */}
+                                        {isOwnProfile && (
+                                            <button
+                                                onClick={() => fileInputRef.current.click()}
+                                                disabled={loading}
+                                                className="absolute bottom-1 right-1 w-8 h-8 rounded-full
+                          bg-gradient-to-br from-peacock to-cerulean text-white
+                          flex items-center justify-center shadow-3d
+                          hover:shadow-3d-hover transition-all disabled:opacity-70"
+                                            >
+                                                {loading ? (
+                                                    <Loader2 size={14} className="animate-spin" />
+                                                ) : (
+                                                    <Edit2 size={14} />
+                                                )}
+                                            </button>
+                                        )}
+
+                                        <input
+                                            type="file"
+                                            hidden
+                                            ref={fileInputRef}
+                                            accept="image/*"
+                                            onChange={(e) => postDetails(e.target.files[0])}
+                                        />
+                                    </div>
+
+                                    {/* Info cards */}
+                                    <div className="w-full flex flex-col gap-3">
+                                        <div className="flex items-center gap-3 px-4 py-3 bg-swan
+                      rounded-xl border border-nordic/40">
+                                            <User size={16} className="text-peacock shrink-0" />
+                                            <div>
+                                                <p className="text-xs text-saltwater">Full name</p>
+                                                <p className="text-sm font-semibold text-viridian capitalize">
+                                                    {user.name}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-3 px-4 py-3 bg-swan
+                      rounded-xl border border-nordic/40">
+                                            <Mail size={16} className="text-cerulean shrink-0" />
+                                            <div>
+                                                <p className="text-xs text-saltwater">Email address</p>
+                                                <p className="text-sm font-semibold text-viridian">
+                                                    {user.email}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Footer */}
+                                <div className="flex items-center justify-between px-6 py-4
+                  border-t border-nordic/30 bg-swan/50">
+                                    {isOwnProfile && (
+                                        <button
+                                            onClick={() => setPwdOpen(true)}
+                                            className="flex items-center gap-2 text-sm font-semibold
+                        text-cerulean hover:text-viridian transition-colors"
+                                        >
+                                            <KeyRound size={15} />
+                                            Change Password
+                                        </button>
+                                    )}
+
+                                    <button
+                                        onClick={onClose}
+                                        className={`${isOwnProfile ? "" : "ml-auto"} px-4 py-2 rounded-xl
+                      text-sm font-semibold text-white
+                      bg-gradient-to-r from-peacock to-cerulean
+                      shadow-3d hover:shadow-3d-hover transition-all`}
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+
+            {/* Change Password Modal */}
+            <ChangePasswordModal
+                isOpen={pwdOpen}
+                onClose={() => setPwdOpen(false)}
+            />
+        </>
+    );
+};
 
 export default ProfileModal;

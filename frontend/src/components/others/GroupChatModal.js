@@ -1,83 +1,78 @@
 import React, { useState, useEffect } from 'react'
-import { useDisclosure } from '@chakra-ui/hooks'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
-    Button,
-    Modal,
-    ModalOverlay,
-    ModalContent,
-    ModalHeader,
-    ModalFooter,
-    ModalBody,
-    ModalCloseButton,
-    IconButton,
-    useToast,
-    Input,
-    FormControl,
-    Box,
-} from '@chakra-ui/react'
-import { ViewIcon } from '@chakra-ui/icons'
-import { Image, Text } from "@chakra-ui/react";
-import { ChatState } from '../../context/ChatProvider';
-import axios from 'axios';
-import UserListItem from '../UserList/UserListItem';
-import UserListforGroup from '../UserList/UserListforGroup';
-
+    X,
+    Users,
+    Plus,
+    Search,
+    UserPlus,
+    Trash2,
+    Loader2,
+    Hash,
+    UserCheck,
+} from 'lucide-react'
+import { useToast } from '@chakra-ui/react'
+import { ChatState } from '../../context/ChatProvider'
+import axios from 'axios'
+import UserListItem from '../UserList/UserListItem'
+import UserListforGroup from '../UserList/UserListforGroup'
 
 const GroupChatModal = ({ children }) => {
+    const [isOpen, setIsOpen] = useState(false)
+    const [groupChatName, setGroupChatName] = useState("")
+    const [selectedUsers, setSelectedUsers] = useState([])
+    const [searchQuery, setSearchQuery] = useState("")
+    const [searchResult, setSearchResult] = useState([])
+    const [loading, setLoading] = useState(false)
+    const [searchLoading, setSearchLoading] = useState(false)
+    const toast = useToast()
 
-    // const {user} = ChatState();
-    const [groupChatName, setGroupChatName] = useState();
-    const [selectedUsers, setSelectedUsers] = useState([]);
-    const [search, setSearch] = useState("");
-    const [searchQuery, setSearchQuery] = useState("");
-    const [searchResult, setSearchResult] = useState([]);
-    const [loading, setLoading] = useState();
-    const toast = useToast();
+    const { user, chats, setChats, setSelectedChat } = ChatState()
 
-    // after creating the group we have to append it to the list of the chat that we already have and we have defined it in context
-
-    const { user, chats, setChats, setSelectedChat } = ChatState();
-
-    const { isOpen, onOpen, onClose } = useDisclosure();
-
-    useEffect(() => {
-        if (!searchQuery.trim()) {
-            setSearchResult([]);
-        }
-    }, [searchQuery]);
-
-
+    // Reset all states
     const resetStates = () => {
-        setGroupChatName("");
-        setSelectedUsers([]);
-        setSearchQuery("");
-        setSearchResult([]);
-        setLoading(false);
-    };
+        setGroupChatName("")
+        setSelectedUsers([])
+        setSearchQuery("")
+        setSearchResult([])
+        setLoading(false)
+        setSearchLoading(false)
+    }
+
+    const handleOpen = () => {
+        resetStates()
+        setIsOpen(true)
+    }
 
     const handleClose = () => {
-        resetStates();
-        onClose();
-    };
+        resetStates()
+        setIsOpen(false)
+    }
 
+    // Clear search results when query is empty
+    useEffect(() => {
+        if (!searchQuery.trim()) {
+            setSearchResult([])
+        }
+    }, [searchQuery])
+
+    // Debounced search
+    useEffect(() => {
+        const delayDebounce = setTimeout(() => {
+            if (searchQuery.trim()) {
+                handleSearch(searchQuery)
+            }
+        }, 500)
+
+        return () => clearTimeout(delayDebounce)
+        // eslint-disable-next-line
+    }, [searchQuery])
 
     const handleSearch = async (query) => {
-        // // if serach box has nothing
-        // if (!query) {
-        //     toast({
-        //         title: "Please Enter something to Search!",
-        //         // description: `No users found for "${query}"`,
-        //         status: "info",
-        //         duration: 3000,
-        //         isClosable: true,
-        //         position: "bottom",
-        //     });
-        //     return
-        // }
+        if (!query.trim()) return
 
         try {
-            // calling search api
-            setLoading(true);
+            setSearchLoading(true)
 
             const config = {
                 headers: {
@@ -85,263 +80,325 @@ const GroupChatModal = ({ children }) => {
                 }
             }
 
-            const { data } = await axios.get(`/api/user?search=${query}`, config);
-
-            console.log(data);
-
-            setLoading(false);
-            // now is data to set tto the serch resutl
-            setSearchResult(data);
+            const { data } = await axios.get(`/api/user?search=${query}`, config)
+            setSearchResult(data)
+            setSearchLoading(false)
 
             if (data.length === 0) {
                 toast({
-                    title: "No users found!",
+                    title: "No users found",
                     description: `No users found for "${query}"`,
                     status: "info",
                     duration: 3000,
                     isClosable: true,
-                    position: "bottom",
-                });
+                    position: "top-right",
+                })
             }
-
         } catch (error) {
             toast({
                 title: "Error Occurred!",
-                description: "Failed to Load the Search Results",
+                description: "Failed to load search results",
                 status: "error",
                 duration: 5000,
                 isClosable: true,
-                position: "bottom-left",
-            });
-            setLoading(false);
+                position: "top-right",
+            })
+            setSearchLoading(false)
         }
-
     }
 
-    // when user clicks create
     const createGroupChat = async () => {
-
         if (selectedUsers.length < 2) {
             toast({
-                title: "Minimum 2 users required!",
+                title: "Minimum 2 users required",
+                description: "Please select at least 2 members for the group",
                 status: "warning",
                 duration: 3000,
                 isClosable: true,
-                position: "bottom",
-            });
-            return;
+                position: "top-right",
+            })
+            return
         }
 
-
-        if (!groupChatName || !selectedUsers) {
+        if (!groupChatName.trim()) {
             toast({
-                title: "Please fill all the fields!",
+                title: "Group name required",
+                description: "Please enter a name for your group",
                 status: "warning",
                 duration: 3000,
                 isClosable: true,
-                position: "bottom",
-            });
-            return;
+                position: "top-right",
+            })
+            return
         }
 
-        // do create chat api calling
         try {
-            setLoading(true);
+            setLoading(true)
+
             const config = {
                 headers: {
                     Authorization: `Bearer ${user.token}`,
                 }
             }
 
-            const { data } = await axios.post("api/chat/group", {
-                name: groupChatName,
-                users: JSON.stringify(selectedUsers.map((u) => u._id)),
-            }, config);
+            const { data } = await axios.post(
+                "/api/chat/group",
+                {
+                    name: groupChatName,
+                    users: JSON.stringify(selectedUsers.map((u) => u._id)),
+                },
+                config
+            )
 
-            // adding to the very top
             setChats([data, ...chats])
+            setSelectedChat(data)
+
             toast({
-                title: "New Group Chat created!",
+                title: "🎉 Group Created!",
+                description: `"${groupChatName}" is ready to chat`,
                 status: "success",
                 duration: 5000,
                 isClosable: true,
-                position: "bottom-left",
-            });
+                position: "top-right",
+            })
 
-
-            resetStates();
-            onClose();
-
-
+            resetStates()
+            handleClose()
         } catch (error) {
             toast({
                 title: "Error Occurred!",
-                description: "Failed to create the Group",
+                description: error.response?.data?.message || "Failed to create the group",
                 status: "error",
                 duration: 5000,
                 isClosable: true,
-                position: "bottom-left",
-            });
-            setLoading(false);
+                position: "top-right",
+            })
+            setLoading(false)
         }
-
     }
 
     const setUserToGroup = (userToAdd) => {
-
-        // agr user pehle se ha to mat karo add
-        if (selectedUsers.includes(userToAdd)) {
+        if (selectedUsers.some((u) => u._id === userToAdd._id)) {
             toast({
                 title: "User Already Added!",
+                description: `${userToAdd.name} is already in the group`,
                 status: "warning",
-                duration: 5000,
+                duration: 3000,
                 isClosable: true,
-                position: "bottom-left",
-            });
-            return;
+                position: "top-right",
+            })
+            return
         }
 
-        // otherwise do - means already present user ke ssath ise bhi add kar do
-        setSelectedUsers([...selectedUsers, userToAdd]);
-
-        // console.log(selectedUsers);
-
+        setSelectedUsers([...selectedUsers, userToAdd])
     }
 
-    // removes the user from selectedUsers whose _id matches the deleteUser _id
-    // means keep only those user who is not matching with the slected user id
     const handleDelete = (deleteUser) => {
-        setSelectedUsers(selectedUsers.filter((sel) => sel._id !== deleteUser._id));
+        setSelectedUsers(selectedUsers.filter((sel) => sel._id !== deleteUser._id))
     }
 
     return (
         <>
-            {/* clicking this children modal will open */}
-            <span onClick={onOpen}>{children}</span>
+            {/* Trigger */}
+            <span onClick={handleOpen} className="cursor-pointer">
+                {children}
+            </span>
 
-            <Modal isOpen={isOpen} onClose={handleClose}>
-                <ModalOverlay />
-                <ModalContent>
-                    <ModalHeader
-                        fontSize="26px"
-                        display="flex"
-                        justifyContent="center"
-                        textTransform="capitalize"
-                    >Create Group Chat</ModalHeader>
-                    <ModalCloseButton />
+            <AnimatePresence>
+                {isOpen && (
+                    <>
+                        {/* Backdrop */}
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={handleClose}
+                            className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50"
+                        />
 
-                    <ModalBody
-                        display={"flex"}
-                        flexDirection={"column"}
-                        alignItems={"center"}
-                    >
-                        {/* there will be 2 input fields  for chat nme and for searching the user to add to the grp*/}
+                        {/* Modal */}
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 28 }}
+                            className="fixed inset-0 z-50 flex items-center justify-center px-4"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl 
+                                border border-nordic/40 overflow-hidden max-h-[90vh] flex flex-col">
 
-                        <FormControl display="flex">
-                            <Input
-                                placeholder='Search User to add to the group...'
-                                mb={3}
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                            <Button
-                                variant="solid"
-                                colorScheme="purple"
-                                ml={1}
-                                isLoading={loading}
-                                onClick={() => handleSearch(searchQuery)}
-                                isDisabled={!searchQuery.trim()}
+                                {/* Header */}
+                                <div className="flex items-center justify-between px-6 py-4 
+                                    border-b border-nordic/30 bg-gradient-to-r from-peacock/10 to-cerulean/5">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-viridian/10 rounded-xl">
+                                            <Users size={22} className="text-viridian" />
+                                        </div>
+                                        <div>
+                                            <h2 className="font-display text-viridian text-2xl leading-tight">
+                                                Create Group Chat
+                                            </h2>
+                                            <p className="text-sm text-saltwater font-normal">
+                                                Add members and start chatting
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={handleClose}
+                                        className="p-1.5 rounded-lg hover:bg-swan text-saltwater 
+                                            hover:text-viridian transition-colors"
+                                    >
+                                        <X size={22} />
+                                    </button>
+                                </div>
 
-                            >
-                                Search
-                            </Button>
-                        </FormControl>
-
-                        {/* here render the list of user that added to the group */}
-
-                        {/* here render the searched users */}
-                        {/* and for that i wiil use already made component */}
-
-                        {loading ? (
-                            <div>loading...</div>
-                        ) :
-                            (
-                                // here slice bcause only 4 result show at one time
-                                // set to group function means, if user click the user, it should be added to the list of the user who will be going to part of the group
-                                searchResult?.slice(0, 4).map((user) =>
-                                    <UserListItem
-                                        key={user._id}
-                                        user={user}
-                                        handleFunction={() => setUserToGroup(user)}
-                                    />
-
-                                )
-                            )
-                        }
-
-
-                        {selectedUsers.length > 0 && (
-
-                            <Box
-                                width="100%"
-                                mt={3}
-                                mb={3}
-                                p={2}
-                                borderRadius="md"
-                                bg="gray.50"
-                                border="1px solid"
-                                borderColor="gray.200"
-                            >
-                                <Text
-                                    fontSize="sm"
-                                    fontWeight="bold"
-                                    color="gray.600"
-                                    mb={2}
-                                    textTransform="capitalize"
-                                >
-                                    group members -
-                                </Text>
-
-                                <Box
-                                    display="flex"
-                                    flexWrap="wrap"
-                                    gap={2}
-                                >
-                                    {selectedUsers.map((u) => (
-                                        <UserListforGroup
-                                            key={u._id}
-                                            user={u}
-                                            handleFunction={() => handleDelete(u)}
+                                {/* Body */}
+                                <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+                                    {/* Group Name Input */}
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-semibold text-viridian/80 flex items-center gap-2">
+                                            <Hash size={16} />
+                                            Group Name
+                                        </label>
+                                        <input
+                                            type="text"
+                                            placeholder="Enter group name..."
+                                            value={groupChatName}
+                                            onChange={(e) => setGroupChatName(e.target.value)}
+                                            className="w-full px-4 py-3 rounded-xl bg-swan/60 border border-nordic/30 
+                                                text-base text-viridian placeholder:text-saltwater/60
+                                                focus:outline-none focus:ring-2 focus:ring-cerulean/40 focus:border-cerulean
+                                                transition-all duration-200"
                                         />
-                                    ))}
-                                </Box>
-                            </Box>
-                        )}
+                                    </div>
 
-                        {/* // {selectedUsers.length > 1 && ( */}
-                        <FormControl>
-                            <Input
-                                placeholder='Enter the Group Name...'
-                                mb={3}
-                                onChange={(e) => { setGroupChatName(e.target.value) }}>
+                                    {/* Search Section */}
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-semibold text-viridian/80 flex items-center gap-2">
+                                            <UserPlus size={16} />
+                                            Add Members
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                placeholder="Search users by name or email..."
+                                                value={searchQuery}
+                                                onChange={(e) => setSearchQuery(e.target.value)}
+                                                className="w-full px-4 py-3 pl-11 rounded-xl bg-swan/60 border border-nordic/30 
+                                                    text-base text-viridian placeholder:text-saltwater/60
+                                                    focus:outline-none focus:ring-2 focus:ring-cerulean/40 focus:border-cerulean
+                                                    transition-all duration-200"
+                                            />
+                                            <Search
+                                                size={20}
+                                                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-saltwater"
+                                            />
+                                            {searchLoading && (
+                                                <Loader2
+                                                    size={20}
+                                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-cerulean animate-spin"
+                                                />
+                                            )}
+                                        </div>
 
-                            </Input>
-                        </FormControl>
-                        {/* // )} */}
+                                        {/* Search Results */}
+                                        {searchResult.length > 0 && (
+                                            <div className="mt-3 space-y-1.5 max-h-52 overflow-y-auto 
+                                                border border-nordic/20 rounded-xl p-1.5 bg-swan/40">
+                                                {searchResult.slice(0, 5).map((user) => (
+                                                    <UserListItem
+                                                        key={user._id}
+                                                        user={user}
+                                                        handleFunction={() => setUserToGroup(user)}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
 
+                                    {/* Selected Members */}
+                                    {selectedUsers.length > 0 && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="space-y-2.5"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-sm font-semibold text-viridian/80 flex items-center gap-2">
+                                                    <UserCheck size={16} />
+                                                    Members ({selectedUsers.length})
+                                                </p>
+                                                <span className="text-sm text-saltwater">
+                                                    {selectedUsers.length < 2 ? "Need 2+ members" : "Ready to create"}
+                                                </span>
+                                            </div>
 
+                                            <div className="flex flex-wrap gap-2 p-3 bg-swan/60 rounded-xl 
+                                                border border-nordic/30 min-h-[56px]">
+                                                {selectedUsers.map((u) => (
+                                                    <UserListforGroup
+                                                        key={u._id}
+                                                        user={u}
+                                                        handleFunction={() => handleDelete(u)}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </motion.div>
+                                    )}
 
+                                    {/* Requirements Notice */}
+                                    <div className="flex items-start gap-3 p-4 bg-cerulean/5 rounded-xl 
+                                        border border-cerulean/10">
+                                        <Users size={18} className="text-cerulean mt-0.5 flex-shrink-0" />
+                                        <div>
+                                            <p className="text-sm font-semibold text-viridian/80">Quick tip</p>
+                                            <p className="text-sm text-viridian/60 leading-relaxed">
+                                                Add at least 2 members to create a group. You can add more
+                                                members later from the group settings.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
 
-                    </ModalBody>
+                                {/* Footer */}
+                                <div className="flex items-center justify-between px-6 py-4 
+                                    border-t border-nordic/30 bg-swan/50">
+                                    <button
+                                        onClick={handleClose}
+                                        className="px-4 py-3 rounded-xl text-base font-semibold text-saltwater 
+                                            hover:text-viridian hover:bg-swan transition-all duration-200"
+                                    >
+                                        Cancel
+                                    </button>
 
-                    <ModalFooter>
-                        <Button colorScheme='purple' onClick={createGroupChat}>
-                            Create
-                        </Button>
-                        {/* <Button variant='ghost'>Secondary Action</Button> */}
-                    </ModalFooter>
-                </ModalContent>
-            </Modal>
+                                    <motion.button
+                                        whileTap={{ scale: 0.97 }}
+                                        onClick={createGroupChat}
+                                        disabled={loading || selectedUsers.length < 2 || !groupChatName.trim()}
+                                        className="px-6 py-3 rounded-xl bg-gradient-to-r from-peacock to-cerulean 
+                                            text-white text-base font-semibold shadow-3d hover:shadow-3d-hover 
+                                            disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none
+                                            transition-all duration-200 flex items-center gap-2.5"
+                                    >
+                                        {loading ? (
+                                            <>
+                                                <Loader2 size={20} className="animate-spin" />
+                                                Creating...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Plus size={20} />
+                                                Create Group
+                                            </>
+                                        )}
+                                    </motion.button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
         </>
     )
 }

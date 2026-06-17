@@ -1,37 +1,34 @@
-import React, { useEffect,useState} from 'react'
-import axios from 'axios';
-import { ChatState } from '../context/ChatProvider';
-import {Box} from '@chakra-ui/react';
-import SideBar from '../components/others/SideBar';
-import MyChats from '../components/Chatpage/MyChats';
-import Chatbox from '../components/Chatpage/Chatbox';
+import React, { useState } from "react";
+import { ChatState } from "../context/ChatProvider";
+import SideBar from "../components/others/SideBar";
+import MyChats from "../components/Chatpage/MyChats";
+import Chatbox from "../components/Chatpage/Chatbox";
 
 const ChatPage = () => {
-
-    const {user} = ChatState();
-    const [fetchChatAgain, setFetchChatAgain] = useState();
+    const { user } = ChatState();
+    const [fetchChatAgain, setFetchChatAgain] = useState(false);
 
     return (
-        <div style={{width: "100%",}}>
-            {/* <h1>Hey Anshika</h1> */}
+        <div className="w-full min-h-screen bg-swan flex flex-col">
             {user && <SideBar />}
 
-            <Box
-                display="flex"
-                justifyContent="space-between"
-                width="100%"
-                height="91.5vh"
-                padding="10px"
-            >
+            <div className="flex justify-between w-full h-[calc(100vh-4rem)] gap-3 p-3">
+                {user && (
+                    <MyChats
+                        fetchChatAgain={fetchChatAgain}
+                        setFetchChatAgain={setFetchChatAgain}
+                    />
+                )}
 
-                {user && <MyChats fetchChatAgain={fetchChatAgain} setFetchChatAgain={setFetchChatAgain}/>}
-
-                {user && <Chatbox fetchChatAgain={fetchChatAgain} setFetchChatAgain={setFetchChatAgain}/>}
-
-            </Box>
-
+                {user && (
+                    <Chatbox
+                        fetchChatAgain={fetchChatAgain}
+                        setFetchChatAgain={setFetchChatAgain}
+                    />
+                )}
+            </div>
         </div>
-    )
-}
+    );
+};
 
-export default ChatPage
+export default ChatPage;

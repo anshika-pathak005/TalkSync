@@ -1,26 +1,16 @@
-// here ill define the loading component for chat page
-import React from 'react';
-import { Spinner, Stack, Skeleton } from '@chakra-ui/react';
+import React from "react";
 
 const ChatLoading = () => {
-    return(
-        <Stack>
-            <Skeleton height="40px" />
-            <Skeleton height="40px" />
-            <Skeleton height="40px" />
-            <Skeleton height="40px" />
-            <Skeleton height="40px" />
-            <Skeleton height="40px" />
-            <Skeleton height="40px" />
-            <Skeleton height="40px" />
-            <Skeleton height="40px" />
-            <Skeleton height="40px" />
-            <Skeleton height="40px" />
-            <Skeleton height="40px" />
-            <Skeleton height="40px" />
-            <Skeleton height="40px" />
-        </Stack>
-    )
-}
+    return (
+        <div className="flex flex-col gap-2.5 w-full">
+            {Array.from({ length: 10 }).map((_, i) => (
+                <div
+                    key={i}
+                    className="h-12 w-full rounded-xl bg-nordic/40 animate-pulse"
+                />
+            ))}
+        </div>
+    );
+};
 
 export default ChatLoading;

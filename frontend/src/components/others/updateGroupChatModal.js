@@ -1,76 +1,86 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-    Box,
-    Button,
-    Modal,
-    ModalOverlay,
-    ModalContent,
-    ModalHeader,
-    ModalFooter,
-    ModalBody,
-    ModalCloseButton,
-    IconButton,
-    useToast,
-    FormControl,
-    Input,
-    Spinner,
-    Badge,
-} from "@chakra-ui/react";
-import { ViewIcon, CheckIcon } from "@chakra-ui/icons";
-import { Image, Text } from "@chakra-ui/react";
-import { useDisclosure } from "@chakra-ui/hooks";
+    Users,
+    UserPlus,
+    UserMinus,
+    LogOut,
+    Save,
+    Edit2,
+    Search,
+    Loader2,
+    X,
+    Crown,
+    User,
+    Hash,
+} from "lucide-react";
+import { useToast } from "@chakra-ui/react";
 import { ChatState } from "../../context/ChatProvider";
 import UserListItem from "../UserList/UserListItem";
 import UserListforGroup from "../UserList/UserListforGroup";
 import axios from "axios";
 
 const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessages }) => {
-    const { isOpen, onOpen, onClose } = useDisclosure();
+    const [isOpen, setIsOpen] = useState(false);
     const [groupChatName, setGroupChatName] = useState("");
-    const [renameLoading, setrenameLoading] = useState(false);
+    const [renameLoading, setRenameLoading] = useState(false);
     const [searchLoading, setSearchLoading] = useState(false);
     const [addUserLoading, setAddUserLoading] = useState(false);
-    // const [removeUserLoading, setRemoveUserLoading] = useState(false);
     const [leaveGroupLoading, setLeaveGroupLoading] = useState(false);
+    const [removeUserLoading, setRemoveUserLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
-    const [search, setSearch] = useState();
     const [searchResult, setSearchResult] = useState([]);
-    const [loading, setLoading] = useState();
     const toast = useToast();
 
     const { selectedChat, setSelectedChat, user } = ChatState();
 
-    const handleModalOpen = () => {
-        onOpen();
+    // Clear search results when query is empty
+    useEffect(() => {
+        if (!searchQuery.trim()) {
+            setSearchResult([]);
+        }
+    }, [searchQuery]);
+
+    // Debounced search
+    useEffect(() => {
+        const delayDebounce = setTimeout(() => {
+            if (searchQuery.trim()) {
+                handleSearch(searchQuery);
+            }
+        }, 500);
+
+        return () => clearTimeout(delayDebounce);
+        // eslint-disable-next-line
+    }, [searchQuery]);
+
+    const handleOpen = () => {
+        setIsOpen(true);
         setGroupChatName("");
         setSearchQuery("");
         setSearchResult([]);
     };
 
-    const handleModalClose = () => {
-        onClose();
+    const handleClose = () => {
+        setIsOpen(false);
         setGroupChatName("");
         setSearchQuery("");
         setSearchResult([]);
     };
 
     const handleRename = async () => {
-        // if nothing there then return,
-
-        if (!groupChatName) {
+        if (!groupChatName.trim()) {
             toast({
                 title: "Please enter a group name!",
                 status: "warning",
                 duration: 3000,
                 isClosable: true,
-                position: "bottom",
+                position: "top-right",
             });
             return;
         }
 
         try {
-            // api call to rename
-            setrenameLoading(true);
+            setRenameLoading(true);
 
             const config = {
                 headers: {
@@ -87,48 +97,37 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                 config
             );
 
-            // now updated chat will be shown in the list
             setSelectedChat(data);
-
-            // fetching agian so that it would show the latest chats
             setFetchChatAgain(!fetchChatAgain);
+            setRenameLoading(false);
 
-            setrenameLoading(false);
-
-            // success
             toast({
-                title: "Group Renamed Successfully!",
+                title: "✨ Group Renamed!",
+                description: `Group name updated to "${groupChatName}"`,
                 status: "success",
                 duration: 3000,
                 isClosable: true,
-                position: "bottom",
+                position: "top-right",
             });
 
-            // onclose();
+            setGroupChatName("");
         } catch (error) {
             toast({
                 title: "Failed Renaming the Group",
-                description: error.response.data.message,
+                description: error.response?.data?.message || "Something went wrong",
                 status: "error",
                 duration: 3000,
                 isClosable: true,
-                position: "bottom",
+                position: "top-right",
             });
-            setrenameLoading(false);
+            setRenameLoading(false);
         }
-        setGroupChatName("");
     };
 
     const handleSearch = async (query) => {
-        // if serach box has nothing
-        if (!query) {
-            return;
-            // setSearchResult([]);
-        }
-        // setSearch(query);
+        if (!query.trim()) return;
 
         try {
-            // calling search api
             setSearchLoading(true);
 
             const config = {
@@ -138,31 +137,27 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
             };
 
             const { data } = await axios.get(`/api/user?search=${query}`, config);
-
-            console.log(data);
-
-            setSearchLoading(false);
-            // now is data to set tto the serch resutl
             setSearchResult(data);
+            setSearchLoading(false);
 
             if (data.length === 0) {
                 toast({
-                    title: "No users found!",
+                    title: "No users found",
                     description: `No users found for "${query}"`,
                     status: "info",
                     duration: 3000,
                     isClosable: true,
-                    position: "bottom",
+                    position: "top-right",
                 });
             }
         } catch (error) {
             toast({
                 title: "Error Occurred!",
-                description: "Failed to Load the Search Results",
+                description: "Failed to load search results",
                 status: "error",
                 duration: 5000,
                 isClosable: true,
-                position: "bottom",
+                position: "top-right",
             });
             setSearchLoading(false);
         }
@@ -186,20 +181,20 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                 config
             );
 
-            // User khud leave kar raha hai
             setSelectedChat();
             setFetchChatAgain(!fetchChatAgain);
             setLeaveGroupLoading(false);
 
             toast({
-                title: "You left the group!",
+                title: "👋 Left the group!",
+                description: "You have successfully left the group",
                 status: "success",
                 duration: 3000,
                 isClosable: true,
-                position: "bottom",
+                position: "top-right",
             });
 
-            handleModalClose();
+            handleClose();
         } catch (error) {
             toast({
                 title: "Error Occurred!",
@@ -207,38 +202,36 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                 status: "error",
                 duration: 3000,
                 isClosable: true,
-                position: "bottom",
+                position: "top-right",
             });
             setLeaveGroupLoading(false);
         }
     };
 
     const addUserToGroup = async (userToAdd) => {
-        // if user already present the show info
         if (selectedChat.users.find((u) => u._id === userToAdd._id)) {
             toast({
                 title: "User Already in group!",
-                status: "error",
+                description: `${userToAdd.name} is already a member`,
+                status: "warning",
                 duration: 3000,
                 isClosable: true,
-                position: "bottom",
+                position: "top-right",
             });
             return;
         }
 
-        // is this user is admin only then he can add any person to the group
         if (selectedChat.groupAdmin._id !== user._id) {
             toast({
                 title: "Only admins can add someone!",
                 status: "error",
                 duration: 3000,
                 isClosable: true,
-                position: "bottom",
+                position: "top-right",
             });
             return;
         }
 
-        // after checks then make api call to adding user to the grp
         try {
             setAddUserLoading(true);
             const config = {
@@ -256,71 +249,60 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                 config
             );
 
-            // then this user we will set to the selected chat
             setSelectedChat(data);
             setFetchChatAgain(!fetchChatAgain);
             setAddUserLoading(false);
+
             toast({
-                title: "User Added to the group!",
+                title: "✅ User Added!",
+                description: `${userToAdd.name} has been added to the group`,
                 status: "success",
                 duration: 3000,
                 isClosable: true,
-                position: "bottom",
+                position: "top-right",
             });
+
             setSearchQuery("");
             setSearchResult([]);
         } catch (error) {
             toast({
-                title: "Error Ocuured!",
-                description: error.response.data.message,
+                title: "Error Occurred!",
+                description: error.response?.data?.message || "Failed to add user",
                 status: "error",
                 duration: 3000,
                 isClosable: true,
-                position: "bottom",
+                position: "top-right",
             });
             setAddUserLoading(false);
         }
     };
 
     const handleDelete = async (userToDelete) => {
-        // only admin can remove
-        // if(selectedChat.groupAdmin._id !== user._id && userToDelete._id !== user._id){
-        //     toast({
-        //         title: "Only admins can remove someone!",
-        //         status: "error",
-        //         duration: 5000,
-        //         isClosable: true,
-        //         position: "bottom-left",
-        //     });
-        //     return;
-        // }
-
         if (selectedChat.groupAdmin._id !== user._id) {
             toast({
                 title: "Only admins can remove someone!",
                 status: "error",
-                duration: 5000,
+                duration: 3000,
                 isClosable: true,
-                position: "bottom-left",
+                position: "top-right",
             });
             return;
         }
 
-        // Admin cannot remove themselves
         if (userToDelete._id === user._id) {
             toast({
                 title: "You cannot remove yourself!",
                 description: "Please use 'Leave Group' button instead.",
                 status: "warning",
-                duration: 5000,
+                duration: 3000,
                 isClosable: true,
-                position: "bottom-left",
+                position: "top-right",
             });
             return;
         }
 
         try {
-            setLoading(true);
+            setRemoveUserLoading(true);
             const config = {
                 headers: {
                     Authorization: `Bearer ${user.token}`,
@@ -336,17 +318,18 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                 config
             );
 
-            // if user itself has logged out then we would remove him from the chat
-            userToDelete._id === user._id ? setSelectedChat() : setSelectedChat(data);
+            setSelectedChat(data);
             setFetchChatAgain(!fetchChatAgain);
             fetchAllMessages();
-            setLoading(false);
+            setRemoveUserLoading(false);
+
             toast({
-                title: "User Removed from group!",
+                title: "🗑️ User Removed!",
+                description: `${userToDelete.name} has been removed from the group`,
                 status: "success",
                 duration: 3000,
                 isClosable: true,
-                position: "bottom",
+                position: "top-right",
             });
         } catch (error) {
             toast({
@@ -355,173 +338,264 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                 status: "error",
                 duration: 3000,
                 isClosable: true,
-                position: "bottom",
+                position: "top-right",
             });
-            setLoading(false);
+            setRemoveUserLoading(false);
         }
     };
 
+    const isAdmin = selectedChat?.groupAdmin?._id === user?._id;
+
     return (
-        <div>
-            <IconButton
-                display={"flex"}
-                onClick={handleModalOpen}
-                icon={<ViewIcon />}
-            />
+        <>
+            {/* Trigger Button */}
+            <button
+                onClick={handleOpen}
+                className="p-2.5 rounded-xl bg-swan/60 hover:bg-swan 
+                    text-saltwater hover:text-viridian transition-all duration-200
+                    border border-nordic/30 hover:border-cerulean/40"
+            >
+                <Users size={20} />
+            </button>
 
-            <Modal isOpen={isOpen} onClose={handleModalClose} isCentered size={'2xl'}>
-                <ModalOverlay />
-                <ModalContent>
-                    <ModalHeader
-                        fontSize="35px"
-                        display="flex"
-                        flexDirection={"column"}
-                        justifyContent="center"
-                        alignItems={"center"}
-                        textTransform="capitalize"
-                    >
-                        {selectedChat.chatName}
-                        <Box
-                            display="flex"
-                            gap={2}
-                            mt={2}
-                            // pt={10}
-                            // pr={5}
-                            // pl={5}
-                            p={5}
-                            pb={1}
+            <AnimatePresence>
+                {isOpen && (
+                    <>
+                        {/* Backdrop */}
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={handleClose}
+                            className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50"
+                        />
 
-                            flexWrap="wrap"
-                            justifyContent="space-between"
-                            width={'100%'}
+                        {/* Modal */}
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 28 }}
+                            className="fixed inset-0 z-50 flex items-center justify-center px-4"
+                            onClick={(e) => e.stopPropagation()}
                         >
-                            <Badge colorScheme="green" fontSize="sm" padding={2}>
-                                {selectedChat.users.length} Members
-                            </Badge>
-                            <Badge colorScheme="purple" fontSize="sm" padding={2}>
-                                Admin : {selectedChat.groupAdmin.name}
-                            </Badge>
-                        </Box>
-                    </ModalHeader>
-                    <ModalCloseButton />
-                    <ModalBody>
-                        {/* here show all the user currently in the group */}
+                            <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl 
+                                border border-nordic/40 overflow-hidden max-h-[90vh] flex flex-col">
 
-                        <Box
-                            width="100%"
-                            mt={3}
-                            mb={4}
-                            p={2}
-                            borderRadius="md"
-                            bg="gray.50"
-                            border="1px solid"
-                            borderColor="gray.200"
-                        >
-                            <Text
-                                fontSize="sm"
-                                fontWeight="bold"
-                                // color="gray.600"
-                                mb={2}
-                                textTransform="capitalize"
-                            >
-                                group members -
-                            </Text>
-
-                            <Box display="flex" flexWrap="wrap" gap={2}>
-                                {selectedChat.users.map((u) => (
-                                    <UserListforGroup
-                                        key={u._id}
-                                        user={u}
-                                        handleFunction={() => handleDelete(u)}
-                                    />
-                                ))}
-                            </Box>
-                        </Box>
-
-                        {/* then form control , input for rename chat, then adding the user to grp */}
-
-                        <FormControl display="flex">
-                            <Input
-                                placeholder="New Chat Name"
-                                mb={5}
-                                value={groupChatName}
-                                onChange={(e) => setGroupChatName(e.target.value)}
-                            />
-                            <Button
-                                variant="solid"
-                                colorScheme="purple"
-                                ml={3}
-                                isLoading={renameLoading}
-                                onClick={handleRename}
-                            >
-                                Update
-                            </Button>
-                        </FormControl>
-
-                        {selectedChat.groupAdmin._id === user._id && (
-                            <>
-                                <FormControl display={"flex"}>
-                                    <Input
-                                        placeholder="Search User to Add to group"
-                                        mb={5}
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                    />
-                                    <Button
-                                        variant="solid"
-                                        colorScheme="purple"
-                                        ml={3}
-                                        isLoading={searchLoading}
-                                        onClick={() => {
-                                            handleSearch(searchQuery);
-                                        }}
+                                {/* Header */}
+                                <div className="flex items-center justify-between px-6 py-4 
+                                    border-b border-nordic/30 bg-gradient-to-r from-peacock/10 to-cerulean/5">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-viridian/10 rounded-xl">
+                                            <Users size={22} className="text-viridian" />
+                                        </div>
+                                        <div>
+                                            <h2 className="font-display text-viridian text-2xl leading-tight">
+                                                {selectedChat?.chatName}
+                                            </h2>
+                                            <div className="flex items-center gap-3 mt-1">
+                                                <span className="text-sm text-saltwater flex items-center gap-1.5">
+                                                    <Users size={14} />
+                                                    {selectedChat?.users?.length} Members
+                                                </span>
+                                                {isAdmin && (
+                                                    <span className="text-sm text-peacock flex items-center gap-1.5">
+                                                        <Crown size={14} />
+                                                        Admin
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={handleClose}
+                                        className="p-1.5 rounded-lg hover:bg-swan text-saltwater 
+                                            hover:text-viridian transition-colors"
                                     >
-                                        Search
-                                    </Button>
-                                </FormControl>
-                                {/* show the searched users result */}
+                                        <X size={22} />
+                                    </button>
+                                </div>
 
-                                {addUserLoading ? (
-                                    <Box display="flex" justifyContent="center" my={3}>
-                                        <Spinner size="lg" />
-                                    </Box>
-                                ) : searchResult.length > 0 ? (
-                                    searchResult
-                                        ?.slice(0, 4)
-                                        .map((user) => (
-                                            <UserListItem
-                                                key={user._id}
-                                                user={user}
-                                                handleFunction={() => addUserToGroup(user)}
+                                {/* Body */}
+                                <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+                                    {/* Members List */}
+                                    <div className="space-y-2.5">
+                                        <label className="text-sm font-semibold text-viridian/80 flex items-center gap-2">
+                                            <User size={16} />
+                                            Group Members
+                                        </label>
+                                        <div className="flex flex-wrap gap-2 p-3 bg-swan/60 rounded-xl 
+                                            border border-nordic/30 min-h-[60px]">
+                                            {selectedChat?.users?.map((u) => (
+                                                <div key={u._id} className="relative">
+                                                    <UserListforGroup
+                                                        user={u}
+                                                        handleFunction={() => handleDelete(u)}
+                                                    />
+                                                    {u._id === selectedChat?.groupAdmin?._id && (
+                                                        <Crown
+                                                            size={12}
+                                                            className="absolute -top-1 -right-1 text-yellow-500"
+                                                        />
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Rename Section */}
+                                    <div className="space-y-2.5">
+                                        <label className="text-sm font-semibold text-viridian/80 flex items-center gap-2">
+                                            <Edit2 size={16} />
+                                            Rename Group
+                                        </label>
+                                        <div className="flex gap-3">
+                                            <input
+                                                type="text"
+                                                placeholder="Enter new group name..."
+                                                value={groupChatName}
+                                                onChange={(e) => setGroupChatName(e.target.value)}
+                                                className="flex-1 px-4 py-3 rounded-xl bg-swan/60 border border-nordic/30 
+                                                    text-base text-viridian placeholder:text-saltwater/60
+                                                    focus:outline-none focus:ring-2 focus:ring-cerulean/40 focus:border-cerulean
+                                                    transition-all duration-200"
                                             />
-                                        ))
-                                ) : null}
-                            </>
-                        )}
-                    </ModalBody>
+                                            <motion.button
+                                                whileTap={{ scale: 0.97 }}
+                                                onClick={handleRename}
+                                                disabled={renameLoading || !groupChatName.trim()}
+                                                className="px-5 py-3 rounded-xl bg-gradient-to-r from-peacock to-cerulean 
+                                                    text-white text-base font-semibold shadow-3d hover:shadow-3d-hover 
+                                                    disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none
+                                                    transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+                                            >
+                                                {renameLoading ? (
+                                                    <Loader2 size={20} className="animate-spin" />
+                                                ) : (
+                                                    <Edit2 size={18} />
+                                                )}
+                                                Update
+                                            </motion.button>
+                                        </div>
+                                    </div>
 
-                    <ModalFooter justifyContent="space-between">
-                        <Button
-                            colorScheme="red"
-                            onClick={handleLeaveGroup}
-                            isLoading={leaveGroupLoading}
-                        // leftIcon={<ViewIcon />}
-                        >
-                            Leave Group
-                        </Button>
-                        <Button
-                            colorScheme="green"
-                            onClick={handleModalClose}
-                            rightIcon={<CheckIcon />}
-                            isLoading={loading}
-                            isDisabled={loading || renameLoading || searchLoading}
-                        >
-                            Save & Close
-                        </Button>
-                    </ModalFooter>
-                </ModalContent>
-            </Modal>
-        </div>
+                                    {/* Add Members Section - Only for Admins */}
+                                    {isAdmin && (
+                                        <div className="space-y-2.5">
+                                            <label className="text-sm font-semibold text-viridian/80 flex items-center gap-2">
+                                                <UserPlus size={16} />
+                                                Add Members
+                                            </label>
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Search users by name or email..."
+                                                    value={searchQuery}
+                                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                                    className="w-full px-4 py-3 pl-11 rounded-xl bg-swan/60 border border-nordic/30 
+                                                        text-base text-viridian placeholder:text-saltwater/60
+                                                        focus:outline-none focus:ring-2 focus:ring-cerulean/40 focus:border-cerulean
+                                                        transition-all duration-200"
+                                                />
+                                                <Search
+                                                    size={20}
+                                                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-saltwater"
+                                                />
+                                                {searchLoading && (
+                                                    <Loader2
+                                                        size={20}
+                                                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-cerulean animate-spin"
+                                                    />
+                                                )}
+                                            </div>
+
+                                            {/* Search Results */}
+                                            {searchResult.length > 0 && (
+                                                <div className="mt-3 space-y-1.5 max-h-52 overflow-y-auto 
+                                                    border border-nordic/20 rounded-xl p-1.5 bg-swan/40">
+                                                    {searchResult.slice(0, 5).map((user) => (
+                                                        <UserListItem
+                                                            key={user._id}
+                                                            user={user}
+                                                            handleFunction={() => addUserToGroup(user)}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {addUserLoading && (
+                                                <div className="flex justify-center py-4">
+                                                    <Loader2 size={24} className="animate-spin text-cerulean" />
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Info Notice */}
+                                    <div className="flex items-start gap-3 p-4 bg-cerulean/5 rounded-xl 
+                                        border border-cerulean/10">
+                                        {isAdmin ? (
+                                            <>
+                                                <Crown size={18} className="text-yellow-500 mt-0.5 flex-shrink-0" />
+                                                <div>
+                                                    <p className="text-sm font-semibold text-viridian/80">Admin Controls</p>
+                                                    <p className="text-sm text-viridian/60 leading-relaxed">
+                                                        You can add or remove members, and rename the group.
+                                                        Click on any member to remove them from the group.
+                                                    </p>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <User size={18} className="text-cerulean mt-0.5 flex-shrink-0" />
+                                                <div>
+                                                    <p className="text-sm font-semibold text-viridian/80">Member View</p>
+                                                    <p className="text-sm text-viridian/60 leading-relaxed">
+                                                        You're a member of this group. Only admins can add or remove members.
+                                                    </p>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Footer */}
+                                <div className="flex items-center justify-between px-6 py-4 
+                                    border-t border-nordic/30 bg-swan/50">
+                                    <motion.button
+                                        whileTap={{ scale: 0.97 }}
+                                        onClick={handleLeaveGroup}
+                                        disabled={leaveGroupLoading}
+                                        className="px-4 py-3 rounded-xl bg-red-50 text-red-600 
+                                            hover:bg-red-100 transition-all duration-200
+                                            flex items-center gap-2 text-base font-semibold
+                                            border border-red-200 hover:border-red-300"
+                                    >
+                                        {leaveGroupLoading ? (
+                                            <Loader2 size={20} className="animate-spin" />
+                                        ) : (
+                                            <LogOut size={18} />
+                                        )}
+                                        Leave Group
+                                    </motion.button>
+
+                                    <motion.button
+                                        whileTap={{ scale: 0.97 }}
+                                        onClick={handleClose}
+                                        className="px-6 py-3 rounded-xl bg-gradient-to-r from-peacock to-cerulean 
+                                            text-white text-base font-semibold shadow-3d hover:shadow-3d-hover 
+                                            transition-all duration-200 flex items-center gap-2.5"
+                                    >
+                                        <Save size={18} />
+                                        Save & Close
+                                    </motion.button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+        </>
     );
 };
 

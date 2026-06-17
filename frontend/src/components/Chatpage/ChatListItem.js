@@ -1,73 +1,78 @@
-import { Avatar, Box, Text } from "@chakra-ui/react";
+import React from "react";
 import { ChatState } from "../../context/ChatProvider";
 import { getSender } from "../../config/ChatsLogic";
-import { HiUsers } from "react-icons/hi";
+import { Users } from "lucide-react";
+import { motion } from "framer-motion";
 
 const ChatListItem = ({ chat }) => {
     const { user, selectedChat, setSelectedChat } = ChatState();
+    const isActive = selectedChat?._id === chat._id;
 
-    // single chat me dusra user nikalna
     const otherUser =
-        !chat.isGroupChat &&
-        chat.users.find((u) => u._id !== user._id);
+        !chat.isGroupChat && chat.users.find((u) => u._id !== user._id);
+
+    const avatarSrc = !chat.isGroupChat ? otherUser?.pic : null;
+    const initials = !chat.isGroupChat
+        ? getSender(user, chat.users)?.charAt(0)?.toUpperCase()
+        : chat.chatName?.charAt(0)?.toUpperCase();
 
     return (
-        <Box
+        <motion.div
+            whileTap={{ scale: 0.98 }}
             onClick={() => setSelectedChat(chat)}
-            cursor="pointer"
-            bg={selectedChat?._id === chat._id ? "purple.200" : "#E8E8E8"}
-            color={selectedChat?._id === chat._id ? "black" : "black"}
-            px={3}
-            py={2}
-            borderRadius="lg"
-            display="flex"
-            alignItems="center"
-            justifyContent="space-between"
-            // mb={1}
+            className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer
+        transition-all duration-200
+        ${isActive
+                    ? "bg-gradient-to-r from-peacock to-cerulean text-white shadow-3d"
+                    : "bg-white hover:bg-swan text-viridian shadow-card"
+                }`}
         >
-            {/* LEFT SIDE */}
-            <Box display="flex" alignItems="center">
-                <Avatar
-                    size="sm"
-                    mr={2}
-                    src={!chat.isGroupChat ? otherUser?.pic : ""}
-                    bg={chat.isGroupChat ? "gray.400" : undefined}
-                    color={chat.isGroupChat ? "white" : undefined}
+            <div className="flex items-center gap-3 min-w-0">
+                {/* Avatar */}
+                <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 overflow-hidden
+            ${chat.isGroupChat
+                            ? isActive
+                                ? "bg-white/20"
+                                : "bg-saltwater"
+                            : isActive
+                                ? "bg-white/20"
+                                : "bg-nordic"
+                        }`}
+                >
+                    {avatarSrc ? (
+                        <img src={avatarSrc} alt="" className="w-full h-full object-cover" />
+                    ) : chat.isGroupChat ? (
+                        <Users size={18} className={isActive ? "text-white" : "text-white"} />
+                    ) : (
+                        <span className="text-sm font-semibold text-white">{initials}</span>
+                    )}
+                </div>
 
-                    icon={chat.isGroupChat ? <HiUsers size="18px" /> : undefined}
-                />
-
-
-                <Box>
-                    {/* chat name */}
-                    <Text fontWeight="bold" fontSize={"15px"}>
-                        {!chat.isGroupChat
-                            ? getSender(user, chat.users)
-                            : chat.chatName}
-                    </Text>
-
-                    {/* last message */}
-                    <Text fontSize="xs" color="gray.700" noOfLines={1}>
+                <div className="min-w-0">
+                    <p className="font-semibold text-sm truncate">
+                        {!chat.isGroupChat ? getSender(user, chat.users) : chat.chatName}
+                    </p>
+                    <p
+                        className={`text-xs truncate ${isActive ? "text-white/80" : "text-saltwater"
+                            }`}
+                    >
                         {chat.latestMessage
                             ? `${chat.latestMessage.sender.name}: ${chat.latestMessage.content}`
-                            : ""}
-                    </Text>
-                </Box>
-            </Box>
+                            : "No messages yet"}
+                    </p>
+                </div>
+            </div>
 
-            {/* RIGHT SIDE (unread count – static for now) */}
             {chat.unreadCount > 0 && (
-                <Box
-                    bg="green.500"
-                    color="white"
-                    borderRadius="full"
-                    px={2}
-                    fontSize="xs"
+                <span
+                    className={`text-xs font-semibold rounded-full px-2 py-0.5 shrink-0
+            ${isActive ? "bg-white/25 text-white" : "bg-peacock text-white"}`}
                 >
                     {chat.unreadCount}
-                </Box>
+                </span>
             )}
-        </Box>
+        </motion.div>
     );
 };
 

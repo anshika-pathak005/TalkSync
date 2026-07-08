@@ -73,6 +73,19 @@ export const authUser = asyncHandler(async (req, res) => {
 // fetch all the users with particular name or email
 export const allUsers = asyncHandler(
     async (req, res) => {
+        // Build a MongoDB query object based on the search parameter received in the URL.
+        // Here, we are using MongoDB's query language (MQL), where operators like
+        // $or and $regex are used to define search conditions.
+        //
+        // - $or: Returns documents that satisfy at least one of the given conditions.
+        // - $regex: Performs pattern matching, similar to SQL's LIKE operator.
+        // - $options: "i": Makes the search case-insensitive.
+        //
+        // This query searches for users whose 'name' OR 'email' contains the search
+        // keyword provided in the request (e.g., /api/user?search=john).
+        //
+        // If no search parameter is provided, an empty object {} is used, which means
+        // no filtering is applied and all documents are eligible to be returned.
         const keyword = req.query.search ?
             {
                 // search in db with regex for name or email
@@ -82,7 +95,7 @@ export const allUsers = asyncHandler(
                 ],
             } : {};
 
-            //send all the users except the logged in user 
+        //send all the users except the logged in user by using $ne operator (not equal) in the query
         const users = await User.find(keyword).find({ _id: { $ne: req.user._id } });
         // req.user._id - this is coming from the auth middleware
         res.send(users);

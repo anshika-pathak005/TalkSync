@@ -18,7 +18,8 @@
   --color-success: #16A34A;
   --color-warning: #D97706;
 
-  --font-display: 'DM Serif Display', Georgia, serif;
+  /* --font-display: 'DM Serif Display', Georgia, serif; */
+  --font-display: serif;
   --font-body: 'Inter', sans-serif;
 
   --radius-sm: 6px;

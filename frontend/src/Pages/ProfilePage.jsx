@@ -110,7 +110,7 @@ const ProfilePage = () => {
   return (
     <div className="min-h-screen bg-swan/40 flex flex-col">
       {/* Page header */}
-      <div className="relative bg-white border-b border-nordic/40 shadow-card sticky top-0 z-10">
+      <div className=" bg-white border-b border-nordic/40 shadow-card sticky top-0 z-10">
         {/* gradient accent strip, matches ChangePasswordModal's header treatment */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-peacock via-cerulean to-viridian" />
 

@@ -286,7 +286,7 @@ const SideBar = () => {
     return (
         <>
             {/* ── Navbar ───────────────────────────────────────────── */}
-            <header className="relative w-full h-16 bg-white border-b border-nordic/40 shadow-card
+            <header className=" w-full h-16 bg-white border-b border-nordic/40 shadow-card
         flex items-center justify-between px-4 sm:px-6 z-40 sticky top-0">
 
                 {/* gradient accent strip — matches ProfilePage / ConnectionsPage headers */}

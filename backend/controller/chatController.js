@@ -2,6 +2,7 @@ import asyncHandler from "express-async-handler";
 import Chat from "../Modals/chatModel.js";
 import User from "../Modals/userModel.js";
 import { generateToken } from "../config/generateToken.js";
+import { getConnectionBetween } from "../utils/connectionUtils.js";
 
 // in this accessChat there is going to happend 2 thing, if the chat already exists between 2 users then we will return that chat
 // otherwise we will create a new chat between the 2 users and return that
@@ -14,6 +15,14 @@ export const accessChat = asyncHandler(
         if (!userId) {
             console.log("UserId param not sent with request");
             return res.sendStatus(400);
+        }
+
+        // gate: only accepted connections can create/open a 1:1 chat
+        const connection = await getConnectionBetween(req.user._id, userId);
+
+        if (!connection || connection.status !== "accepted") {
+            res.status(403);
+            throw new Error("You must be connected with this user to start a chat");
         }
 
         // check if chat already exists between the 2 users
@@ -50,7 +59,6 @@ export const accessChat = asyncHandler(
 
             // after creation store to db
             try {
-
                 const createdChat = await Chat.create(chatData);
 
                 // now fetch the full chat details from db
@@ -58,7 +66,7 @@ export const accessChat = asyncHandler(
 
                 res.status(200).send(FullChat);
 
-            } catch {
+            } catch (error) {
                 res.status(400);
                 throw new Error(error.message);
             }
@@ -66,6 +74,7 @@ export const accessChat = asyncHandler(
     }
 )
 
+// this function fetches all the chats for the logged in user and returns them
 export const fetchChats = asyncHandler(
     async (req, res) => {
         try {
@@ -99,7 +108,6 @@ export const fetchChats = asyncHandler(
                     });
 
                     // hide chats deleted by this user until a new message comes
-
                     results = results.filter((chat) => {
 
                         // find if this user deleted this chat
@@ -122,7 +130,44 @@ export const fetchChats = asyncHandler(
                         return false;
                     });
 
-                    res.status(200).send(results);
+                    // hide 1:1 chats where I am the one who unfriended the other user
+                    const filteredForRemoval = [];
+                    for (const chat of results) {
+                        // if it is a group chat, keep it
+                        if (chat.isGroupChat) {
+                            filteredForRemoval.push(chat);
+                            continue;
+                        }
+
+                        // find the other user in this 1:1 chat
+                        const otherUser = chat.users.find(
+                            (u) => u._id.toString() !== req.user._id.toString()
+                        );
+
+                        // if other user not found, skip this chat
+                        if (!otherUser) {
+                            filteredForRemoval.push(chat);
+                            continue;
+                        }
+
+                        // check the connection status between the logged in user and the other user
+                        const connection = await getConnectionBetween(req.user._id, otherUser._id);
+
+                        // if I removed this connection, then I lose visibility of the chat
+                        if (
+                            connection &&
+                            connection.status === "removed" &&
+                            connection.removedBy?.toString() === req.user._id.toString()
+                        ) {
+                            // I removed this connection, so I lose visibility of the chat
+                            continue;
+                        }
+
+                        // keep the chat in all other cases
+                        filteredForRemoval.push(chat);
+                    }
+
+                    res.status(200).send(filteredForRemoval);
                 });
         } catch (error) {
             res.status(400);

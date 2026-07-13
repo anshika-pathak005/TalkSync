@@ -1,0 +1,25 @@
+{
+    "_id": "6a54b0a489319148c06f9af2",
+    "sender": {
+        "_id": "69425417b10191de02c0a4d2",
+        "name": "Anshika Pathak",
+        "email": "ansh@gmail.com",
+        "pic": "http://res.cloudinary.com/do0itnacu/image/upload/v1767126794/scgs2rykxnrsydznsa2s.png",
+        "createdAt": "2025-12-17T06:56:23.353Z",
+        "updatedAt": "2025-12-30T20:33:15.745Z",
+        "__v": 0
+    },
+    "receiver": {
+        "_id": "693fb22acfbffb0141ec5fe2",
+        "name": "ayush",
+        "email": "ayush@gmail.com",
+        "pic": "http://res.cloudinary.com/do0itnacu/image/upload/v1767126679/eqhauhei88cp9oyfbscc.jpg",
+        "createdAt": "2025-12-15T07:00:58.593Z",
+        "updatedAt": "2025-12-30T20:31:20.575Z",
+        "__v": 0
+    },
+    "status": "accepted",
+    "createdAt": "2026-07-13T09:32:20.416Z",
+    "updatedAt": "2026-07-13T09:38:19.851Z",
+    "__v": 0
+}

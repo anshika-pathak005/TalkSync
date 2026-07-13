@@ -1,9 +1,6 @@
 // this file would be responsible for connecting to the database
 
 import mongoose from "mongoose";
-import dotenv from "dotenv";
-import color from "colors";
-
 
 const connectDB = async () => {
     try{

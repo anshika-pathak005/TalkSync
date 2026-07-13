@@ -1,23 +1,43 @@
 // here ill show each user in the search result as a list item
 import React from 'react';
 import { motion } from 'framer-motion';
-import { User, Mail, Plus, Check } from 'lucide-react';
+import { Mail, Loader2 } from 'lucide-react';
 import { ChatState } from '../../context/ChatProvider';
 
-const UserListItem = ({ user, handleFunction, isSelected = false }) => {
+// variant -> tailwind classes, so connectionAction from SideBar can just
+// say "primary" / "outline" / "muted" without knowing any styling details
+const VARIANT_STYLES = {
+    primary:
+        "bg-gradient-to-r from-peacock to-cerulean text-white shadow-3d hover:shadow-3d-hover",
+    outline:
+        "bg-white text-cerulean border border-cerulean/50 hover:bg-cerulean/5",
+    muted:
+        "bg-swan text-saltwater border border-nordic/40 cursor-default",
+};
+
+const UserListItem = ({ user, connectionAction, isSelected = false }) => {
     const { user: loggedInUser } = ChatState();
     const isSelf = loggedInUser?._id === user?._id;
+
+    // fallback so the component doesn't crash if a caller forgets to
+    // pass connectionAction — renders as a disabled, neutral button
+    const action = connectionAction || {
+        label: "—",
+        variant: "muted",
+        disabled: true,
+        onClick: () => { },
+    };
+
+    const variantClass = VARIANT_STYLES[action.variant] || VARIANT_STYLES.muted;
 
     return (
         <motion.div
             whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleFunction}
             className={`group relative w-full flex items-center gap-3 px-4 py-3 rounded-xl 
-                transition-all duration-200 cursor-pointer
+                transition-all duration-200
                 ${isSelected
                     ? 'bg-gradient-to-r from-peacock/10 to-cerulean/10 border-2 border-cerulean/40 shadow-card'
-                    : 'bg-white hover:bg-swan/80 border border-transparent hover:border-nordic/40'
+                    : 'bg-white border border-transparent hover:border-nordic/40'
                 }
                 shadow-sm hover:shadow-card`}
         >
@@ -74,18 +94,28 @@ const UserListItem = ({ user, handleFunction, isSelected = false }) => {
                 </div>
             </div>
 
-            {/* Action Icon */}
-            <div className={`flex-shrink-0 transition-all duration-200
-                ${isSelected
-                    ? 'text-green-500'
-                    : 'text-saltwater group-hover:text-cerulean'
-                }`}>
-                {isSelected ? (
-                    <Check size={20} className="text-green-500" />
-                ) : (
-                    <Plus size={20} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                )}
-            </div>
+            {/* Action button — hidden entirely for your own row */}
+            {!isSelf && (
+                <motion.button
+                    whileTap={action.disabled ? {} : { scale: 0.95 }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (!action.disabled) action.onClick();
+                    }}
+                    disabled={action.disabled}
+                    className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                        text-xs font-semibold transition-all duration-200 whitespace-nowrap
+                        ${variantClass}
+                        ${action.disabled ? "opacity-70" : ""}`}
+                >
+                    {action.label === "Sending..." ||
+                        action.label === "Cancelling..." ||
+                        action.label === "Opening..." ? (
+                        <Loader2 size={12} className="animate-spin" />
+                    ) : null}
+                    {action.label}
+                </motion.button>
+            )}
         </motion.div>
     );
 };

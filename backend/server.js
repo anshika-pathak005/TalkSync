@@ -5,6 +5,7 @@ import color from "colors";
 import userRoutes from "./routes/userRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
+import connectionRoutes from "./routes/connectionRoutes.js";
 import { notFound, errorHandler } from "./middlewares/errorMiddleWare.js";
 import { Socket } from "socket.io";
 import { Server } from "socket.io";
@@ -30,6 +31,9 @@ app.use('/api/chat',chatRoutes);
 
 // api  endpoint for messages
 app.use('/api/message',messageRoutes);
+
+// api  endpoint for connections
+app.use('/api/connection', connectionRoutes);
 
 
 // ------------------ DEPLOYMENT SETUP ------------------

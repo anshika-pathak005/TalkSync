@@ -12,6 +12,7 @@ import {
     MessageCircle,
     X,
     Loader2,
+    AlertCircle,
 } from "lucide-react";
 import ProfileModal from "./profileModal";
 import ChatLoading from "../Chatpage/ChatLoading";
@@ -38,9 +39,24 @@ const SideBar = () => {
     const [profileOpen, setProfileOpen] = useState(false);
     const [profileModalOpen, setProfileModalOpen] = useState(false);
 
+    // ── connection-related state ────────────────────────────────
+    // maps userId -> { status, connectionId, isSender }
+    // populated right after a search so each row can render the
+    // correct action (Connect / Requested / Message / Reconnect)
+    const [connectionStatusMap, setConnectionStatusMap] = useState({});
+    // tracks which specific row currently has a request in-flight,
+    // so only that row's button shows a spinner/disabled state
+    const [actionLoadingId, setActionLoadingId] = useState(null);
+    // small inline error banner instead of a toast lib
+    const [actionError, setActionError] = useState("");
+
     const history = useHistory();
     const notifRef = useRef(null);
     const profileRef = useRef(null);
+
+    const authConfig = {
+        headers: { Authorization: `Bearer ${user.token}` },
+    };
 
     // close dropdowns on outside click
     useEffect(() => {
@@ -75,6 +91,30 @@ const SideBar = () => {
         setSearchResult([]);
         setLoading(false);
         setLoadingChat(false);
+        setConnectionStatusMap({});
+        setActionError("");
+    };
+
+    // fetches connection status for every user in the current search
+    // results, in parallel, so each row can show the right button
+    const fetchConnectionStatuses = async (users) => {
+        try {
+            const results = await Promise.all(
+                users.map((u) =>
+                    axios.get(`/api/connection/status/${u._id}`, authConfig)
+                )
+            );
+
+            const map = {};
+            users.forEach((u, index) => {
+                map[u._id] = results[index].data;
+            });
+
+            setConnectionStatusMap(map);
+        } catch (error) {
+            // non-fatal — rows just fall back to default "Connect" styling
+            console.log("Failed to fetch connection statuses", error);
+        }
     };
 
     const handleSearch = async () => {
@@ -82,15 +122,22 @@ const SideBar = () => {
 
         try {
             setLoading(true);
-            const config = { headers: { Authorization: `Bearer ${user.token}` } };
-            const { data } = await axios.get(`/api/user?search=${search}`, config);
-            setLoading(false);
+            setActionError("");
+            const { data } = await axios.get(`/api/user?search=${search}`, authConfig);
             setSearchResult(data);
+            setLoading(false);
+
+            // fetch connection status for these results right after,
+            // so buttons render correctly without a second user action
+            fetchConnectionStatuses(data);
         } catch (error) {
             setLoading(false);
         }
     };
 
+    // opens/creates the 1:1 chat — only ever called when status is
+    // already "accepted", since the button that triggers this is
+    // only shown in that state
     const accessChat = async (userId) => {
         try {
             setLoadingChat(true);
@@ -108,14 +155,142 @@ const SideBar = () => {
             handleDrawerClose();
         } catch (error) {
             setLoadingChat(false);
+            // defensive — backend gate can still 403 if state changed
+            // between the search and the click (e.g. other user removed you)
+            setActionError(
+                error.response?.data?.message || "You must be connected to chat with this user"
+            );
         }
+    };
+
+    // sends (or re-sends, after a removal/rejection) a connection request
+    const sendConnectionRequest = async (targetUser) => {
+        try {
+            setActionLoadingId(targetUser._id);
+            setActionError("");
+
+            const { data } = await axios.post(
+                "/api/connection/send",
+                { userId: targetUser._id },
+                authConfig
+            );
+
+            setConnectionStatusMap((prev) => ({
+                ...prev,
+                [targetUser._id]: {
+                    status: "pending",
+                    connectionId: data._id,
+                    isSender: true,
+                },
+            }));
+        } catch (error) {
+            setActionError(
+                error.response?.data?.message || "Could not send connection request"
+            );
+        } finally {
+            setActionLoadingId(null);
+        }
+    };
+
+    // lets the sender withdraw a request they sent by mistake,
+    // straight from the search drawer
+    const cancelConnectionRequest = async (targetUser, connectionId) => {
+        try {
+            setActionLoadingId(targetUser._id);
+            setActionError("");
+
+            await axios.put(
+                "/api/connection/cancel",
+                { connectionId },
+                authConfig
+            );
+
+            setConnectionStatusMap((prev) => ({
+                ...prev,
+                [targetUser._id]: { status: "none" },
+            }));
+        } catch (error) {
+            setActionError(
+                error.response?.data?.message || "Could not cancel request"
+            );
+        } finally {
+            setActionLoadingId(null);
+        }
+    };
+
+    // builds the button/badge descriptor for a given search result,
+    // based on the connection status fetched for that user.
+    // UserListItem renders whatever this returns — it doesn't need
+    // to know about connections itself.
+    const getConnectionAction = (targetUser) => {
+        const info = connectionStatusMap[targetUser._id];
+        const isLoading = actionLoadingId === targetUser._id;
+
+        // status hasn't loaded yet, or truly no relationship exists
+        if (!info || info.status === "none" || info.status === "rejected") {
+            return {
+                label: isLoading ? "Sending..." : "Connect",
+                variant: "primary",
+                disabled: isLoading,
+                onClick: () => sendConnectionRequest(targetUser),
+            };
+        }
+
+        if (info.status === "pending" && info.isSender) {
+            return {
+                label: isLoading ? "Cancelling..." : "Requested",
+                variant: "muted",
+                disabled: isLoading,
+                onClick: () => cancelConnectionRequest(targetUser, info.connectionId),
+            };
+        }
+
+        if (info.status === "pending" && !info.isSender) {
+            // they already sent me a request — handled from the
+            // notifications/profile pending list, not from here
+            return {
+                label: "Respond in Requests",
+                variant: "muted",
+                disabled: true,
+                onClick: () => { },
+            };
+        }
+
+        if (info.status === "accepted") {
+            return {
+                label: isLoading ? "Opening..." : "Message",
+                variant: "primary",
+                disabled: isLoading,
+                onClick: () => accessChat(targetUser._id),
+            };
+        }
+
+        if (info.status === "removed") {
+            return {
+                label: isLoading ? "Sending..." : "Reconnect",
+                variant: "outline",
+                disabled: isLoading,
+                onClick: () => sendConnectionRequest(targetUser),
+            };
+        }
+
+        // fallback, shouldn't normally hit this
+        return {
+            label: "Connect",
+            variant: "primary",
+            disabled: false,
+            onClick: () => sendConnectionRequest(targetUser),
+        };
     };
 
     return (
         <>
             {/* ── Navbar ───────────────────────────────────────────── */}
-            <header className="w-full h-16 bg-white border-b border-nordic/40 shadow-card
+            <header className="relative w-full h-16 bg-white border-b border-nordic/40 shadow-card
         flex items-center justify-between px-4 sm:px-6 z-40 sticky top-0">
+
+                {/* gradient accent strip — matches ProfilePage / ConnectionsPage headers */}
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-peacock via-cerulean to-viridian" />
 
                 {/* Left — brand + search trigger */}
                 <div className="flex items-center gap-4">
@@ -290,13 +465,26 @@ const SideBar = () => {
                                     <button
                                         onClick={() => {
                                             setProfileOpen(false);
-                                            setProfileModalOpen(true);
+                                            history.push("/profile");
                                         }}
                                         className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm
-                      text-viridian hover:bg-swan transition-colors"
+      text-viridian hover:bg-swan transition-colors"
                                     >
                                         <User size={15} className="text-saltwater" />
                                         My Profile
+                                    </button>
+
+
+                                    <button
+                                        onClick={() => {
+                                            setProfileOpen(false);
+                                            history.push("/connections");
+                                        }}
+                                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm
+      text-viridian hover:bg-swan transition-colors"
+                                    >
+                                        <User size={15} className="text-saltwater" />
+                                        Connections
                                     </button>
 
                                     <div className="h-px bg-nordic/40 mx-3" />
@@ -344,7 +532,7 @@ const SideBar = () => {
                             animate={{ x: 0 }}
                             exit={{ x: "-100%" }}
                             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                            className="fixed left-0 top-0 h-full w-80 bg-white z-50
+                            className="fixed left-0 top-0 h-full w-80 md:w-[28rem] lg:w-[28rem] bg-white z-50
                 shadow-card-lg flex flex-col"
                         >
                             {/* Drawer header */}
@@ -394,6 +582,15 @@ const SideBar = () => {
                                         Go
                                     </motion.button>
                                 </div>
+
+                                {/* inline error banner for connection actions gone wrong */}
+                                {actionError && (
+                                    <div className="mt-3 flex items-start gap-2 px-3 py-2 rounded-xl
+                    bg-red-50 border border-red-200 text-red-600 text-xs">
+                                        <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                                        <span>{actionError}</span>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Results */}
@@ -406,7 +603,10 @@ const SideBar = () => {
                                             <UserListItem
                                                 key={u._id}
                                                 user={u}
-                                                handleFunction={() => accessChat(u._id)}
+                                                // connectionAction replaces the old single
+                                                // handleFunction — UserListItem renders a
+                                                // button based on { label, variant, disabled, onClick }
+                                                connectionAction={getConnectionAction(u)}
                                             />
                                         ))}
                                     </div>

@@ -31,6 +31,7 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
     const [socketConnected, setSocketConnected] = useState(false);
     const [typing, setTyping] = useState(false); // am I currently sending "typing" events?
     const [isTyping, setIsTyping] = useState(false); // is the OTHER person typing right now?
+    const [systemNotice, setSystemNotice] = useState(null);
 
     const {
         user,
@@ -83,6 +84,7 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
         if (selectedChat) {
             setLoading(true);
             setMessages([]); // wipe old chat's messages right away
+            setSystemNotice(null); // clear any stale notice from the previous chat
         }
 
         fetchAllMessages();
@@ -161,13 +163,22 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
     const sendMessage = async () => {
         if (!newMessage) return;
 
+        // save a copy BEFORE clearing the input, so we can restore it
+        // if sending fails (connection removed, network error, etc)
+        const messageToSend = newMessage;
+
         // tell everyone else in the room I've stopped typing, since
         // I'm about to actually send the message
         socket.emit("stop typing", selectedChat._id);
-        try {
-            const messageToSend = newMessage;
-            setNewMessage(""); // clear input immediately for snappy feel
 
+        // NOTE: removed the duplicate "const messageToSend = newMessage"
+        // that was previously declared again inside the try block —
+        // it was shadowing the outer one, which is harmless here since
+        // both had the same value, but it's redundant and confusing.
+        // We now only declare it once, above, before the try/catch.
+        setNewMessage(""); // clear input immediately for snappy feel
+
+        try {
             const config = {
                 headers: {
                     "Content-Type": "application/json",
@@ -180,6 +191,11 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
                 { content: messageToSend, chatId: selectedChat._id },
                 config
             );
+
+            // if a "not connected" notice was showing from a previous failed
+            // attempt, and this message just went through successfully
+            // (meaning the connection must have been restored), clear it
+            setSystemNotice(null);
 
             // broadcast this message to the other participant(s) in real time
             socket.emit("new message", data);
@@ -196,8 +212,24 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
                 )
             );
         } catch (error) {
-            // silently fail for now — message just won't send. Could add
-            // a small inline error banner here later if you want feedback.
+            // 403 specifically means the backend's connection gate blocked
+            // this send (the other user removed the connection). Instead of
+            // failing silently, or pushing a fake object into the real
+            // `messages` array (which crashed ChatsLogic's sender-lookup
+            // helpers earlier), we set a SEPARATE piece of state that
+            // ChatMessages renders independently, outside the real
+            // messages list — so it never interferes with sender/avatar
+            // alignment logic.
+            if (error.response?.status === 403) {
+                setSystemNotice(
+                    error.response?.data?.message ||
+                    "You're no longer connected with this user. Reconnect to send messages."
+                );
+            }
+
+            // give the user their typed message back so they don't lose it,
+            // regardless of what kind of error occurred (403, network, etc)
+            setNewMessage(messageToSend);
         }
     };
 
@@ -284,7 +316,7 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
                             </div>
                         ) : (
                             <div className="messages flex-1">
-                                <ChatMessages messages={messages} isTyping={isTyping} />
+                                    <ChatMessages messages={messages} isTyping={isTyping} systemNotice={systemNotice} />
                             </div>
                         )}
 

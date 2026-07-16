@@ -8,7 +8,7 @@ import {
 import { ChatState } from "../../context/ChatProvider";
 import ProfileModal from "../others/profileModal";
 
-const ChatMessages = ({ messages, isTyping }) => {
+const ChatMessages = ({ messages, isTyping, systemNotice }) => {
     // anchor div right after the last message — scrollIntoView on
     // this always lands exactly at the bottom of the chat
     const messagesEndRef = useRef(null);
@@ -46,6 +46,23 @@ const ChatMessages = ({ messages, isTyping }) => {
         <div className="flex flex-col overflow-y-auto h-full p-3">
             {messages &&
                 messages.map((m, i) => {
+                    // NEW: system messages (like "not connected anymore") don't have
+                    // a sender, so they get their own simple centered rendering —
+                    // skip all the avatar/bubble alignment logic entirely for these
+            //         if (m.isSystemMessage) {
+            //             return (
+            //                 <div
+            //                     key={m._id}
+            //                     className="flex justify-center my-2"
+            //                 >
+            //                     <span className="text-xs text-saltwater bg-swan px-3 py-1.5
+            // rounded-full border border-nordic/40 text-center max-w-[85%]">
+            //                         {m.content}
+            //                     </span>
+            //                 </div>
+            //             );
+            //         }
+
                     // is this message mine, or the other person's?
                     const isOwn = m.sender._id === user._id;
 
@@ -143,6 +160,18 @@ const ChatMessages = ({ messages, isTyping }) => {
                             style={{ animationDelay: "300ms" }}
                         />
                     </div>
+                </div>
+            )}
+
+            {/* NEW: system notice — real messages ke map se poori tarah
+          alag, isliye ChatsLogic ke index-based helpers isse kabhi
+          touch hi nahi karte */}
+            {systemNotice && (
+                <div className="flex justify-center my-2">
+                    <span className="text-xs text-saltwater bg-swan px-3 py-1.5
+            rounded-full border border-nordic/40 text-center max-w-[85%]">
+                        {systemNotice}
+                    </span>
                 </div>
             )}
 

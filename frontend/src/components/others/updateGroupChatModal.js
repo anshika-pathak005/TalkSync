@@ -47,7 +47,7 @@ const ConnectionAddRow = ({ person, onAdd, disabled }) => (
     </motion.div>
 );
 
-const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessages }) => {
+const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessages, socket }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [groupChatName, setGroupChatName] = useState("");
     const [renameLoading, setRenameLoading] = useState(false);
@@ -158,17 +158,15 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
         try {
             setLeaveGroupLoading(true);
 
-            await axios.put(
+            const { data } = await axios.put(          // <-- capture the response here
                 "/api/chat/leave",
                 { chatId: selectedChat._id },
                 authConfig
             );
 
-            // NOTE: the system message ("X left the group") is created
-            // and saved on the backend, but for OTHER members to see it
-            // appear live, singleChat.js needs to emit/receive a socket
-            // event carrying it — same pattern as a normal sent message.
-            // Send me that file and I'll wire it in.
+            // emit BEFORE clearing selectedChat/leaving, since you need
+            // the chat object with its users array to know who to broadcast to
+            socket.emit("new message", data.systemMessage);
 
             setSelectedChat();
             setFetchChatAgain(!fetchChatAgain);
@@ -238,6 +236,10 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
             setSelectedChat(data.chat);
             setFetchChatAgain(!fetchChatAgain);
 
+            // NEW: broadcast the system message immediately, same shape as a
+            // normal "new message" emit — reuses the exact server-side handler
+            socket.emit("new message", data.systemMessage);
+
             toast({
                 title: "User Added!",
                 description: `${personToAdd.name} has been added to the group`,
@@ -301,6 +303,9 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
             setSelectedChat(data.chat);
             setFetchChatAgain(!fetchChatAgain);
             fetchAllMessages(); // reloads messages, which now includes the new system message
+
+            // NEW
+            socket.emit("new message", data.systemMessage);
 
             toast({
                 title: "User Removed!",

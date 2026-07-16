@@ -297,11 +297,23 @@ export const addToGroup = asyncHandler(
             throw new Error("Only the group admin can add members");
         }
 
+        // NEW — bail out early if this user is already in the group,
+        // instead of pushing a duplicate + creating a redundant
+        // "was added" system message on retry/double-click
+        const alreadyMember = chat.users.some(
+            (u) => u.toString() === userId
+        );
+
+        if (alreadyMember) {
+            res.status(400);
+            throw new Error("User is already a member of this group");
+        }
+
         const addedUser = await User.findById(userId).select("name");
 
         const added = await Chat.findByIdAndUpdate(
             chatId,
-            { $push: { users: userId } },
+            { $addToSet: { users: userId } },  // was $push — prevents duplicate entries
             { new: true }
         )
             .populate("users", "-password")
@@ -320,7 +332,16 @@ export const addToGroup = asyncHandler(
             messageType: "system",
         });
 
-        const populatedSystemMessage = await systemMessage.populate("sender", "name pic");
+        let populatedSystemMessage = await systemMessage.populate("sender", "name pic");
+
+        // NEW — without this, chat.users is undefined on the socket
+        // payload and server.js's "new message" handler silently drops
+        // it instead of broadcasting to the group in real time
+        populatedSystemMessage = await populatedSystemMessage.populate("chat");
+        populatedSystemMessage = await User.populate(populatedSystemMessage, {
+            path: "chat.users",
+            select: "name pic email",
+        });
 
         await Chat.findByIdAndUpdate(chatId, { latestMessage: populatedSystemMessage });
 
@@ -368,7 +389,15 @@ export const removeFromGroup = asyncHandler(
             messageType: "system",
         });
 
-        const populatedSystemMessage = await systemMessage.populate("sender", "name pic");
+        let populatedSystemMessage = await systemMessage.populate("sender", "name pic");
+
+        // NEW — same fix, chat.users must be populated for the socket
+        // broadcast in server.js to find recipients
+        populatedSystemMessage = await populatedSystemMessage.populate("chat");
+        populatedSystemMessage = await User.populate(populatedSystemMessage, {
+            path: "chat.users",
+            select: "name pic email",
+        });
 
         await Chat.findByIdAndUpdate(chatId, { latestMessage: populatedSystemMessage });
 
@@ -412,7 +441,14 @@ export const leaveGroup = asyncHandler(
             messageType: "system",
         });
 
-        const populatedSystemMessage = await systemMessage.populate("sender", "name pic");
+        let populatedSystemMessage = await systemMessage.populate("sender", "name pic");
+
+        // NEW — same fix again
+        populatedSystemMessage = await populatedSystemMessage.populate("chat");
+        populatedSystemMessage = await User.populate(populatedSystemMessage, {
+            path: "chat.users",
+            select: "name pic email",
+        });
 
         await Chat.findByIdAndUpdate(chatId, { latestMessage: populatedSystemMessage });
 

@@ -150,6 +150,19 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
                 // message belongs to the chat I'm currently viewing —
                 // just append it straight to the visible list
                 setMessages((prev) => [...prev, newMessageRecieved]);
+
+                // NEW — if this is a system message about group membership
+                // changing (add/remove/leave), the message's `chat` field
+                // already carries the FRESH users array (populated on the
+                // backend). Sync selectedChat with it so anyone else viewing
+                // this group sees the updated member list immediately,
+                // without needing to close/reopen the modal or refetch.
+                if (
+                    newMessageRecieved.messageType === "system" &&
+                    newMessageRecieved.chat?.users
+                ) {
+                    setSelectedChat(newMessageRecieved.chat);
+                }
             }
         };
 
@@ -299,6 +312,7 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
                                 fetchChatAgain={fetchChatAgain}
                                 setFetchChatAgain={setFetchChatAgain}
                                 fetchAllMessages={fetchAllMessages}
+                                    socket={socket}
                             />
                         )}
                     </div>

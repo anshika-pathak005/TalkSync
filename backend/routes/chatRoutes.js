@@ -1,6 +1,6 @@
 import express from "express";
 import { protect } from "../middlewares/authMiddleware.js";
-import { accessChat, fetchChats, createGroupChat, renameGroup, addToGroup, removeFromGroup, deleteChatForMe } from "../controller/chatController.js";
+import { accessChat, fetchChats, createGroupChat, renameGroup, addToGroup, removeFromGroup, deleteChatForMe, leaveGroup } from "../controller/chatController.js";
 // , fetchChat, createGroupChat, renameGroup, addToGroup, removeFromGroup
 
 const router = express.Router();
@@ -18,6 +18,7 @@ router.route('/groupRename').put(protect,renameGroup);
 router.route('/groupAdd').put(protect,addToGroup);
 // //6- api for removing the user from the group chat
 router.route('/groupRemove').put(protect,removeFromGroup);
+router.route("/leave").put(protect, leaveGroup);
 
 // route for deleting
 router.route('/delete/:chatId').delete(protect, deleteChatForMe);

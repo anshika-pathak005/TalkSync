@@ -1,110 +1,120 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
     X,
     Users,
     Plus,
     Search,
-    UserPlus,
     Trash2,
     Loader2,
     Hash,
     UserCheck,
+    Check,
 } from 'lucide-react'
 import { useToast } from '@chakra-ui/react'
 import { ChatState } from '../../context/ChatProvider'
 import axios from 'axios'
-import UserListItem from '../UserList/UserListItem'
 import UserListforGroup from '../UserList/UserListforGroup'
+
+// small local component — renders one connection row with a
+// tap-to-toggle check, used only inside this modal's member picker.
+// (Not UserListItem, since that component now renders connection
+// actions like Connect/Message — here every row is already an
+// accepted connection, we just need select/deselect.)
+const ConnectionPickerRow = ({ person, isSelected, onToggle }) => (
+    <motion.div
+        whileTap={{ scale: 0.98 }}
+        onClick={onToggle}
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer
+            transition-all duration-150 border
+            ${isSelected
+                ? 'bg-gradient-to-r from-peacock/10 to-cerulean/10 border-cerulean/40'
+                : 'bg-white border-transparent hover:border-nordic/40 hover:bg-swan/60'
+            }`}
+    >
+        <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-nordic/40
+            flex items-center justify-center shrink-0 bg-gradient-to-br from-peacock/20 to-cerulean/20">
+            {person.pic ? (
+                <img src={person.pic} alt={person.name} className="w-full h-full object-cover" />
+            ) : (
+                <span className="text-sm font-display text-viridian font-semibold">
+                    {person.name?.charAt(0)?.toUpperCase()}
+                </span>
+            )}
+        </div>
+
+        <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-viridian truncate">{person.name}</p>
+            <p className="text-xs text-saltwater truncate">{person.email}</p>
+        </div>
+
+        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all
+            ${isSelected
+                ? 'bg-gradient-to-r from-peacock to-cerulean border-transparent'
+                : 'border-nordic/50'
+            }`}>
+            {isSelected && <Check size={13} className="text-white" />}
+        </div>
+    </motion.div>
+)
 
 const GroupChatModal = ({ children }) => {
     const [isOpen, setIsOpen] = useState(false)
     const [groupChatName, setGroupChatName] = useState("")
     const [selectedUsers, setSelectedUsers] = useState([])
-    const [searchQuery, setSearchQuery] = useState("")
-    const [searchResult, setSearchResult] = useState([])
     const [loading, setLoading] = useState(false)
-    const [searchLoading, setSearchLoading] = useState(false)
-    const toast = useToast()
 
+    // replaces old searchResult/searchLoading — now holds the
+    // logged-in user's accepted connections, fetched once on open
+    const [connections, setConnections] = useState([])
+    const [connectionsLoading, setConnectionsLoading] = useState(false)
+
+    // local-only filter — narrows the fetched list, no API calls
+    const [filterQuery, setFilterQuery] = useState("")
+
+    const toast = useToast()
     const { user, chats, setChats, setSelectedChat } = ChatState()
 
-    // Reset all states
     const resetStates = () => {
         setGroupChatName("")
         setSelectedUsers([])
-        setSearchQuery("")
-        setSearchResult([])
+        setFilterQuery("")
+        setConnections([])
         setLoading(false)
-        setSearchLoading(false)
+        setConnectionsLoading(false)
     }
 
-    const handleOpen = () => {
-        resetStates()
-        setIsOpen(true)
-    }
-
-    const handleClose = () => {
-        resetStates()
-        setIsOpen(false)
-    }
-
-    // Clear search results when query is empty
-    useEffect(() => {
-        if (!searchQuery.trim()) {
-            setSearchResult([])
-        }
-    }, [searchQuery])
-
-    // Debounced search
-    useEffect(() => {
-        const delayDebounce = setTimeout(() => {
-            if (searchQuery.trim()) {
-                handleSearch(searchQuery)
-            }
-        }, 500)
-
-        return () => clearTimeout(delayDebounce)
-        // eslint-disable-next-line
-    }, [searchQuery])
-
-    const handleSearch = async (query) => {
-        if (!query.trim()) return
-
+    const fetchConnections = async () => {
         try {
-            setSearchLoading(true)
-
+            setConnectionsLoading(true)
             const config = {
-                headers: {
-                    Authorization: `Bearer ${user.token}`,
-                }
+                headers: { Authorization: `Bearer ${user.token}` },
             }
-
-            const { data } = await axios.get(`/api/user?search=${query}`, config)
-            setSearchResult(data)
-            setSearchLoading(false)
-
-            if (data.length === 0) {
-                toast({
-                    title: "No users found",
-                    description: `No users found for "${query}"`,
-                    status: "info",
-                    duration: 3000,
-                    isClosable: true,
-                    position: "top-right",
-                })
-            }
+            const { data } = await axios.get("/api/connection/my-connections", config)
+            setConnections(data)
         } catch (error) {
             toast({
                 title: "Error Occurred!",
-                description: "Failed to load search results",
+                description: "Failed to load your connections",
                 status: "error",
                 duration: 5000,
                 isClosable: true,
                 position: "top-right",
             })
-            setSearchLoading(false)
+        } finally {
+            setConnectionsLoading(false)
         }
+    }
+
+    const handleOpen = () => {
+        resetStates()
+        setIsOpen(true)
+        fetchConnections()
+    }
+
+    const handleClose = () => {
+        resetStates()
+        setIsOpen(false)
     }
 
     const createGroupChat = async () => {
@@ -154,7 +164,7 @@ const GroupChatModal = ({ children }) => {
             setSelectedChat(data)
 
             toast({
-                title: "🎉 Group Created!",
+                title: "Group Created!",
                 description: `"${groupChatName}" is ready to chat`,
                 status: "success",
                 duration: 5000,
@@ -177,25 +187,30 @@ const GroupChatModal = ({ children }) => {
         }
     }
 
-    const setUserToGroup = (userToAdd) => {
-        if (selectedUsers.some((u) => u._id === userToAdd._id)) {
-            toast({
-                title: "User Already Added!",
-                description: `${userToAdd.name} is already in the group`,
-                status: "warning",
-                duration: 3000,
-                isClosable: true,
-                position: "top-right",
-            })
-            return
-        }
-
-        setSelectedUsers([...selectedUsers, userToAdd])
+    // toggles a connection in/out of the selected members list
+    const toggleUser = (person) => {
+        setSelectedUsers((prev) => {
+            const alreadySelected = prev.some((u) => u._id === person._id)
+            if (alreadySelected) {
+                return prev.filter((u) => u._id !== person._id)
+            }
+            return [...prev, person]
+        })
     }
 
     const handleDelete = (deleteUser) => {
         setSelectedUsers(selectedUsers.filter((sel) => sel._id !== deleteUser._id))
     }
+
+    // client-side filter over the already-fetched connections list
+    const visibleConnections = connections.filter(({ user: person }) => {
+        if (!filterQuery.trim()) return true
+        const q = filterQuery.toLowerCase()
+        return (
+            person.name?.toLowerCase().includes(q) ||
+            person.email?.toLowerCase().includes(q)
+        )
+    })
 
     return (
         <>
@@ -273,48 +288,71 @@ const GroupChatModal = ({ children }) => {
                                         />
                                     </div>
 
-                                    {/* Search Section */}
+                                    {/* Members picker — pulled from accepted connections only */}
                                     <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-viridian/80 flex items-center gap-2">
-                                            <UserPlus size={16} />
-                                            Add Members
-                                        </label>
-                                        <div className="relative">
-                                            <input
-                                                type="text"
-                                                placeholder="Search users by name or email..."
-                                                value={searchQuery}
-                                                onChange={(e) => setSearchQuery(e.target.value)}
-                                                className="w-full px-4 py-3 pl-11 rounded-xl bg-swan/60 border border-nordic/30 
-                                                    text-base text-viridian placeholder:text-saltwater/60
-                                                    focus:outline-none focus:ring-2 focus:ring-cerulean/40 focus:border-cerulean
-                                                    transition-all duration-200"
-                                            />
-                                            <Search
-                                                size={20}
-                                                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-saltwater"
-                                            />
-                                            {searchLoading && (
-                                                <Loader2
-                                                    size={20}
-                                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-cerulean animate-spin"
-                                                />
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-sm font-semibold text-viridian/80 flex items-center gap-2">
+                                                <UserCheck size={16} />
+                                                Add Members from Connections
+                                            </label>
+                                            {selectedUsers.length > 0 && (
+                                                <span className="text-xs text-saltwater">
+                                                    {selectedUsers.length} selected
+                                                </span>
                                             )}
                                         </div>
 
-                                        {/* Search Results */}
-                                        {searchResult.length > 0 && (
-                                            <div className="mt-3 space-y-1.5 max-h-52 overflow-y-auto 
-                                                border border-nordic/20 rounded-xl p-1.5 bg-swan/40">
-                                                {searchResult.slice(0, 5).map((user) => (
-                                                    <UserListItem
-                                                        key={user._id}
-                                                        user={user}
-                                                        handleFunction={() => setUserToGroup(user)}
-                                                    />
-                                                ))}
+                                        {/* optional local filter — no API call, just narrows the list below */}
+                                        {connections.length > 0 && (
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Filter your connections..."
+                                                    value={filterQuery}
+                                                    onChange={(e) => setFilterQuery(e.target.value)}
+                                                    className="w-full px-4 py-2.5 pl-10 rounded-xl bg-swan/60 border border-nordic/30 
+                                                        text-sm text-viridian placeholder:text-saltwater/60
+                                                        focus:outline-none focus:ring-2 focus:ring-cerulean/40 focus:border-cerulean
+                                                        transition-all duration-200"
+                                                />
+                                                <Search
+                                                    size={16}
+                                                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-saltwater"
+                                                />
                                             </div>
                                         )}
+
+                                        {/* Connections list */}
+                                        <div className="max-h-56 overflow-y-auto border border-nordic/20 
+                                            rounded-xl p-1.5 bg-swan/40">
+                                            {connectionsLoading ? (
+                                                <div className="flex justify-center py-6">
+                                                    <Loader2 size={20} className="animate-spin text-cerulean" />
+                                                </div>
+                                            ) : connections.length === 0 ? (
+                                                <div className="flex flex-col items-center justify-center py-6 gap-1.5
+                                                    text-saltwater text-sm text-center px-4">
+                                                    <Users size={22} className="text-nordic" />
+                                                    You have no connections yet. Connect with people
+                                                    first to add them to a group.
+                                                </div>
+                                            ) : visibleConnections.length === 0 ? (
+                                                <div className="flex items-center justify-center py-6 text-sm text-saltwater">
+                                                    No matches for "{filterQuery}"
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col gap-1">
+                                                    {visibleConnections.map(({ connectionId, user: person }) => (
+                                                        <ConnectionPickerRow
+                                                            key={connectionId}
+                                                            person={person}
+                                                            isSelected={selectedUsers.some((u) => u._id === person._id)}
+                                                            onToggle={() => toggleUser(person)}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {/* Selected Members */}
@@ -354,8 +392,9 @@ const GroupChatModal = ({ children }) => {
                                         <div>
                                             <p className="text-sm font-semibold text-viridian/80">Quick tip</p>
                                             <p className="text-sm text-viridian/60 leading-relaxed">
-                                                Add at least 2 members to create a group. You can add more
-                                                members later from the group settings.
+                                                Add at least 2 members to create a group. Only your
+                                                accepted connections can be added — connect with
+                                                someone first if you don't see them here.
                                             </p>
                                         </div>
                                     </div>

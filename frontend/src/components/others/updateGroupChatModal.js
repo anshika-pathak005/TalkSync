@@ -7,64 +7,98 @@ import {
     LogOut,
     Save,
     Edit2,
-    Search,
     Loader2,
     X,
     Crown,
     User,
-    Hash,
+    Search,
 } from "lucide-react";
 import { useToast } from "@chakra-ui/react";
 import { ChatState } from "../../context/ChatProvider";
-import UserListItem from "../UserList/UserListItem";
 import UserListforGroup from "../UserList/UserListforGroup";
 import axios from "axios";
+
+// same lightweight picker row used in GroupChatModal — click to add
+// directly (no toggle needed here, matches old "click search result
+// to add" behavior)
+const ConnectionAddRow = ({ person, onAdd, disabled }) => (
+    <motion.div
+        whileTap={disabled ? {} : { scale: 0.98 }}
+        onClick={() => !disabled && onAdd()}
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border border-transparent
+            transition-all duration-150
+            ${disabled ? "opacity-60 cursor-default" : "cursor-pointer hover:border-nordic/40 hover:bg-swan/60 bg-white"}`}
+    >
+        <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-nordic/40
+            flex items-center justify-center shrink-0 bg-gradient-to-br from-peacock/20 to-cerulean/20">
+            {person.pic ? (
+                <img src={person.pic} alt={person.name} className="w-full h-full object-cover" />
+            ) : (
+                <span className="text-sm font-display text-viridian font-semibold">
+                    {person.name?.charAt(0)?.toUpperCase()}
+                </span>
+            )}
+        </div>
+        <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-viridian truncate">{person.name}</p>
+            <p className="text-xs text-saltwater truncate">{person.email}</p>
+        </div>
+        <UserPlus size={16} className="text-cerulean shrink-0" />
+    </motion.div>
+);
 
 const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessages }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [groupChatName, setGroupChatName] = useState("");
     const [renameLoading, setRenameLoading] = useState(false);
-    const [searchLoading, setSearchLoading] = useState(false);
-    const [addUserLoading, setAddUserLoading] = useState(false);
+    const [addUserLoading, setAddUserLoading] = useState(null); // holds the userId being added
     const [leaveGroupLoading, setLeaveGroupLoading] = useState(false);
-    const [removeUserLoading, setRemoveUserLoading] = useState(false);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [searchResult, setSearchResult] = useState([]);
-    const toast = useToast();
+    const [removeUserLoading, setRemoveUserLoading] = useState(null); // holds the userId being removed
 
+    // replaces old searchQuery/searchResult — now holds accepted
+    // connections, filtered to exclude people already in this group
+    const [connections, setConnections] = useState([]);
+    const [connectionsLoading, setConnectionsLoading] = useState(false);
+    const [filterQuery, setFilterQuery] = useState("");
+
+    const toast = useToast();
     const { selectedChat, setSelectedChat, user } = ChatState();
 
-    // Clear search results when query is empty
-    useEffect(() => {
-        if (!searchQuery.trim()) {
-            setSearchResult([]);
+    const authConfig = {
+        headers: { Authorization: `Bearer ${user.token}` },
+    };
+
+    const fetchConnections = async () => {
+        try {
+            setConnectionsLoading(true);
+            const { data } = await axios.get("/api/connection/my-connections", authConfig);
+            setConnections(data);
+        } catch (error) {
+            toast({
+                title: "Error Occurred!",
+                description: "Failed to load your connections",
+                status: "error",
+                duration: 5000,
+                isClosable: true,
+                position: "top-right",
+            });
+        } finally {
+            setConnectionsLoading(false);
         }
-    }, [searchQuery]);
-
-    // Debounced search
-    useEffect(() => {
-        const delayDebounce = setTimeout(() => {
-            if (searchQuery.trim()) {
-                handleSearch(searchQuery);
-            }
-        }, 500);
-
-        return () => clearTimeout(delayDebounce);
-        // eslint-disable-next-line
-    }, [searchQuery]);
+    };
 
     const handleOpen = () => {
         setIsOpen(true);
         setGroupChatName("");
-        setSearchQuery("");
-        setSearchResult([]);
+        setFilterQuery("");
+        fetchConnections();
     };
 
     const handleClose = () => {
         setIsOpen(false);
         setGroupChatName("");
-        setSearchQuery("");
-        setSearchResult([]);
+        setFilterQuery("");
+        setConnections([]);
     };
 
     const handleRename = async () => {
@@ -82,19 +116,13 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
         try {
             setRenameLoading(true);
 
-            const config = {
-                headers: {
-                    Authorization: `Bearer ${user.token}`,
-                },
-            };
-
             const { data } = await axios.put(
                 "/api/chat/groupRename",
                 {
                     chatId: selectedChat._id,
                     chatName: groupChatName,
                 },
-                config
+                authConfig
             );
 
             setSelectedChat(data);
@@ -102,7 +130,7 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
             setRenameLoading(false);
 
             toast({
-                title: "✨ Group Renamed!",
+                title: "Group Renamed!",
                 description: `Group name updated to "${groupChatName}"`,
                 status: "success",
                 duration: 3000,
@@ -124,69 +152,30 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
         }
     };
 
-    const handleSearch = async (query) => {
-        if (!query.trim()) return;
-
-        try {
-            setSearchLoading(true);
-
-            const config = {
-                headers: {
-                    Authorization: `Bearer ${user.token}`,
-                },
-            };
-
-            const { data } = await axios.get(`/api/user?search=${query}`, config);
-            setSearchResult(data);
-            setSearchLoading(false);
-
-            if (data.length === 0) {
-                toast({
-                    title: "No users found",
-                    description: `No users found for "${query}"`,
-                    status: "info",
-                    duration: 3000,
-                    isClosable: true,
-                    position: "top-right",
-                });
-            }
-        } catch (error) {
-            toast({
-                title: "Error Occurred!",
-                description: "Failed to load search results",
-                status: "error",
-                duration: 5000,
-                isClosable: true,
-                position: "top-right",
-            });
-            setSearchLoading(false);
-        }
-    };
-
+    // now hits the dedicated /api/chat/leave endpoint — any member
+    // can call this (no admin check on the backend), unlike groupRemove
     const handleLeaveGroup = async () => {
         try {
             setLeaveGroupLoading(true);
-            const config = {
-                headers: {
-                    Authorization: `Bearer ${user.token}`,
-                },
-            };
 
-            const { data } = await axios.put(
-                "/api/chat/groupRemove",
-                {
-                    chatId: selectedChat._id,
-                    userId: user._id,
-                },
-                config
+            await axios.put(
+                "/api/chat/leave",
+                { chatId: selectedChat._id },
+                authConfig
             );
+
+            // NOTE: the system message ("X left the group") is created
+            // and saved on the backend, but for OTHER members to see it
+            // appear live, singleChat.js needs to emit/receive a socket
+            // event carrying it — same pattern as a normal sent message.
+            // Send me that file and I'll wire it in.
 
             setSelectedChat();
             setFetchChatAgain(!fetchChatAgain);
             setLeaveGroupLoading(false);
 
             toast({
-                title: "👋 Left the group!",
+                title: "Left the group!",
                 description: "You have successfully left the group",
                 status: "success",
                 duration: 3000,
@@ -208,11 +197,13 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
         }
     };
 
-    const addUserToGroup = async (userToAdd) => {
-        if (selectedChat.users.find((u) => u._id === userToAdd._id)) {
+    // adds a connection directly to the group — click-to-add, no
+    // intermediate selection step, matching the old search-result flow
+    const addUserToGroup = async (personToAdd) => {
+        if (selectedChat.users.find((u) => u._id === personToAdd._id)) {
             toast({
                 title: "User Already in group!",
-                description: `${userToAdd.name} is already a member`,
+                description: `${personToAdd.name} is already a member`,
                 status: "warning",
                 duration: 3000,
                 isClosable: true,
@@ -233,37 +224,28 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
         }
 
         try {
-            setAddUserLoading(true);
-            const config = {
-                headers: {
-                    Authorization: `Bearer ${user.token}`,
-                },
-            };
+            setAddUserLoading(personToAdd._id);
 
             const { data } = await axios.put(
                 "/api/chat/groupAdd",
                 {
                     chatId: selectedChat._id,
-                    userId: userToAdd._id,
+                    userId: personToAdd._id,
                 },
-                config
+                authConfig
             );
 
-            setSelectedChat(data);
+            setSelectedChat(data.chat);
             setFetchChatAgain(!fetchChatAgain);
-            setAddUserLoading(false);
 
             toast({
-                title: "✅ User Added!",
-                description: `${userToAdd.name} has been added to the group`,
+                title: "User Added!",
+                description: `${personToAdd.name} has been added to the group`,
                 status: "success",
                 duration: 3000,
                 isClosable: true,
                 position: "top-right",
             });
-
-            setSearchQuery("");
-            setSearchResult([]);
         } catch (error) {
             toast({
                 title: "Error Occurred!",
@@ -273,10 +255,13 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                 isClosable: true,
                 position: "top-right",
             });
-            setAddUserLoading(false);
+        } finally {
+            setAddUserLoading(null);
         }
     };
 
+    // now hits /api/chat/groupRemove, which is admin-only on the
+    // backend and returns { chat, systemMessage } instead of the raw chat
     const handleDelete = async (userToDelete) => {
         if (selectedChat.groupAdmin._id !== user._id) {
             toast({
@@ -302,12 +287,7 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
         }
 
         try {
-            setRemoveUserLoading(true);
-            const config = {
-                headers: {
-                    Authorization: `Bearer ${user.token}`,
-                },
-            };
+            setRemoveUserLoading(userToDelete._id);
 
             const { data } = await axios.put(
                 "/api/chat/groupRemove",
@@ -315,16 +295,15 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                     chatId: selectedChat._id,
                     userId: userToDelete._id,
                 },
-                config
+                authConfig
             );
 
-            setSelectedChat(data);
+            setSelectedChat(data.chat);
             setFetchChatAgain(!fetchChatAgain);
-            fetchAllMessages();
-            setRemoveUserLoading(false);
+            fetchAllMessages(); // reloads messages, which now includes the new system message
 
             toast({
-                title: "🗑️ User Removed!",
+                title: "User Removed!",
                 description: `${userToDelete.name} has been removed from the group`,
                 status: "success",
                 duration: 3000,
@@ -340,11 +319,26 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                 isClosable: true,
                 position: "top-right",
             });
-            setRemoveUserLoading(false);
+        } finally {
+            setRemoveUserLoading(null);
         }
     };
 
     const isAdmin = selectedChat?.groupAdmin?._id === user?._id;
+
+    // connections filtered to exclude existing group members, then
+    // narrowed further by the local filter box (no API calls)
+    const availableConnections = connections.filter(({ user: person }) => {
+        const alreadyInGroup = selectedChat?.users?.some((u) => u._id === person._id);
+        if (alreadyInGroup) return false;
+
+        if (!filterQuery.trim()) return true;
+        const q = filterQuery.toLowerCase();
+        return (
+            person.name?.toLowerCase().includes(q) ||
+            person.email?.toLowerCase().includes(q)
+        );
+    });
 
     return (
         <>
@@ -432,6 +426,12 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                                                         user={u}
                                                         handleFunction={() => handleDelete(u)}
                                                     />
+                                                    {removeUserLoading === u._id && (
+                                                        <div className="absolute inset-0 flex items-center justify-center
+                                                            bg-white/70 rounded-full">
+                                                            <Loader2 size={14} className="animate-spin text-cerulean" />
+                                                        </div>
+                                                    )}
                                                     {u._id === selectedChat?.groupAdmin?._id && (
                                                         <Crown
                                                             size={12}
@@ -479,55 +479,60 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                                         </div>
                                     </div>
 
-                                    {/* Add Members Section - Only for Admins */}
+                                    {/* Add Members Section - Only for Admins, sourced from Connections */}
                                     {isAdmin && (
                                         <div className="space-y-2.5">
                                             <label className="text-sm font-semibold text-viridian/80 flex items-center gap-2">
                                                 <UserPlus size={16} />
-                                                Add Members
+                                                Add Members from Connections
                                             </label>
-                                            <div className="relative">
-                                                <input
-                                                    type="text"
-                                                    placeholder="Search users by name or email..."
-                                                    value={searchQuery}
-                                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                                    className="w-full px-4 py-3 pl-11 rounded-xl bg-swan/60 border border-nordic/30 
-                                                        text-base text-viridian placeholder:text-saltwater/60
-                                                        focus:outline-none focus:ring-2 focus:ring-cerulean/40 focus:border-cerulean
-                                                        transition-all duration-200"
-                                                />
-                                                <Search
-                                                    size={20}
-                                                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-saltwater"
-                                                />
-                                                {searchLoading && (
-                                                    <Loader2
-                                                        size={20}
-                                                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-cerulean animate-spin"
+
+                                            {connections.length > 0 && (
+                                                <div className="relative">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Filter your connections..."
+                                                        value={filterQuery}
+                                                        onChange={(e) => setFilterQuery(e.target.value)}
+                                                        className="w-full px-4 py-2.5 pl-10 rounded-xl bg-swan/60 border border-nordic/30 
+                                                            text-sm text-viridian placeholder:text-saltwater/60
+                                                            focus:outline-none focus:ring-2 focus:ring-cerulean/40 focus:border-cerulean
+                                                            transition-all duration-200"
                                                     />
+                                                    <Search
+                                                        size={16}
+                                                        className="absolute left-3.5 top-1/2 -translate-y-1/2 text-saltwater"
+                                                    />
+                                                </div>
+                                            )}
+
+                                            <div className="max-h-52 overflow-y-auto border border-nordic/20 
+                                                rounded-xl p-1.5 bg-swan/40">
+                                                {connectionsLoading ? (
+                                                    <div className="flex justify-center py-6">
+                                                        <Loader2 size={20} className="animate-spin text-cerulean" />
+                                                    </div>
+                                                ) : availableConnections.length === 0 ? (
+                                                    <div className="flex flex-col items-center justify-center py-6 gap-1.5
+                                                        text-saltwater text-sm text-center px-4">
+                                                        <Users size={22} className="text-nordic" />
+                                                        {connections.length === 0
+                                                            ? "You have no connections yet."
+                                                            : "All your connections are already in this group."}
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col gap-1">
+                                                        {availableConnections.map(({ connectionId, user: person }) => (
+                                                            <ConnectionAddRow
+                                                                key={connectionId}
+                                                                person={person}
+                                                                disabled={addUserLoading === person._id}
+                                                                onAdd={() => addUserToGroup(person)}
+                                                            />
+                                                        ))}
+                                                    </div>
                                                 )}
                                             </div>
-
-                                            {/* Search Results */}
-                                            {searchResult.length > 0 && (
-                                                <div className="mt-3 space-y-1.5 max-h-52 overflow-y-auto 
-                                                    border border-nordic/20 rounded-xl p-1.5 bg-swan/40">
-                                                    {searchResult.slice(0, 5).map((user) => (
-                                                        <UserListItem
-                                                            key={user._id}
-                                                            user={user}
-                                                            handleFunction={() => addUserToGroup(user)}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            )}
-
-                                            {addUserLoading && (
-                                                <div className="flex justify-center py-4">
-                                                    <Loader2 size={24} className="animate-spin text-cerulean" />
-                                                </div>
-                                            )}
                                         </div>
                                     )}
 
@@ -540,8 +545,9 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                                                 <div>
                                                     <p className="text-sm font-semibold text-viridian/80">Admin Controls</p>
                                                     <p className="text-sm text-viridian/60 leading-relaxed">
-                                                        You can add or remove members, and rename the group.
-                                                        Click on any member to remove them from the group.
+                                                        You can add members from your connections, remove
+                                                        members, and rename the group. Click on any
+                                                        member to remove them from the group.
                                                     </p>
                                                 </div>
                                             </>

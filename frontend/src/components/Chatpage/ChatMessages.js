@@ -46,22 +46,19 @@ const ChatMessages = ({ messages, isTyping, systemNotice }) => {
         <div className="flex flex-col overflow-y-auto h-full p-3">
             {messages &&
                 messages.map((m, i) => {
-                    // NEW: system messages (like "not connected anymore") don't have
-                    // a sender, so they get their own simple centered rendering —
-                    // skip all the avatar/bubble alignment logic entirely for these
-            //         if (m.isSystemMessage) {
-            //             return (
-            //                 <div
-            //                     key={m._id}
-            //                     className="flex justify-center my-2"
-            //                 >
-            //                     <span className="text-xs text-saltwater bg-swan px-3 py-1.5
-            // rounded-full border border-nordic/40 text-center max-w-[85%]">
-            //                         {m.content}
-            //                     </span>
-            //                 </div>
-            //             );
-            //         }
+
+                    // system messages (leave/remove group) render as a centered
+                    // badge, completely bypassing avatar/bubble alignment logic
+                    if (m.messageType === "system") {
+                        return (
+                            <div key={m._id} className="flex justify-center my-2">
+                                <span className="text-xs text-saltwater bg-swan px-3 py-1.5
+                    rounded-full border border-nordic/40 text-center max-w-[85%]">
+                                    {m.content}
+                                </span>
+                            </div>
+                        );
+                    }
 
                     // is this message mine, or the other person's?
                     const isOwn = m.sender._id === user._id;
@@ -135,6 +132,8 @@ const ChatMessages = ({ messages, isTyping, systemNotice }) => {
                         </div>
                     );
                 })}
+
+
 
             {/* NEW: typing indicator is now rendered here — like a normal
     message inside the scrollable list, right after the last message.

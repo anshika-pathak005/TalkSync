@@ -1,6 +1,7 @@
 import asyncHandler from "express-async-handler";
 import Chat from "../Modals/chatModel.js";
 import User from "../Modals/userModel.js";
+import Message from "../Modals/messageModel.js";
 import { generateToken } from "../config/generateToken.js";
 import { getConnectionBetween } from "../utils/connectionUtils.js";
 
@@ -254,53 +255,168 @@ export const renameGroup = asyncHandler(
     }
 );
 
+// export const addToGroup = asyncHandler(
+//     async (req, res) => {
+//         // api for adding the user to group chat
+
+//         // ill need chatId in which the user is to be added and the userId of the user to be added
+//         const { chatId, userId } = req.body;
+
+//         // now update the chat to add the user
+//         const added = await Chat.findByIdAndUpdate(chatId,{
+//             $push: { users: userId },
+//         },
+//         { new: true } )//to return the updated chat
+//         .populate("users","-password")
+//         .populate("groupAdmin","-password");
+
+//         // if no chat found with that id then send the error otherwise send updated chat
+//         if(!added){
+//             res.status(404);
+//             throw new Error("Chat Not Found");
+//         }else{
+//             res.json(added);
+//         }
+//     }
+// );
+
 export const addToGroup = asyncHandler(
     async (req, res) => {
-        // api for adding the user to group chat
-
-        // ill need chatId in which the user is to be added and the userId of the user to be added
         const { chatId, userId } = req.body;
 
-        // now update the chat to add the user
-        const added = await Chat.findByIdAndUpdate(chatId,{
-            $push: { users: userId },
-        },
-        { new: true } )//to return the updated chat
-        .populate("users","-password")
-        .populate("groupAdmin","-password");
-
-        // if no chat found with that id then send the error otherwise send updated chat
-        if(!added){
+        const chat = await Chat.findById(chatId);
+        if (!chat) {
             res.status(404);
             throw new Error("Chat Not Found");
-        }else{
-            res.json(added);
         }
+
+        // only the group admin can add members — same rule your
+        // frontend already enforces, now also enforced server-side
+        if (chat.groupAdmin.toString() !== req.user._id.toString()) {
+            res.status(403);
+            throw new Error("Only the group admin can add members");
+        }
+
+        const addedUser = await User.findById(userId).select("name");
+
+        const added = await Chat.findByIdAndUpdate(
+            chatId,
+            { $push: { users: userId } },
+            { new: true }
+        )
+            .populate("users", "-password")
+            .populate("groupAdmin", "-password");
+
+        if (!added) {
+            res.status(404);
+            throw new Error("Chat Not Found");
+        }
+
+        // create the system message announcing the addition
+        const systemMessage = await Message.create({
+            sender: req.user._id,
+            content: `${addedUser?.name || "A user"} was added to the group`,
+            chat: chatId,
+            messageType: "system",
+        });
+
+        const populatedSystemMessage = await systemMessage.populate("sender", "name pic");
+
+        await Chat.findByIdAndUpdate(chatId, { latestMessage: populatedSystemMessage });
+
+        res.json({ chat: added, systemMessage: populatedSystemMessage });
     }
 );
 
 export const removeFromGroup = asyncHandler(
     async (req, res) => {
-        // api for removing the user from the group chat
-
-        // ill need chatId from which the user is to be removed and the userId of the user to be removed
+        // admin removes someone else from the group
         const { chatId, userId } = req.body;
 
-        // now update the chat to remove the user
-        const removed = await Chat.findByIdAndUpdate(chatId,{
-            $pull: { users: userId },
-        },
-        { new: true } )//to return the updated chat
-        .populate("users","-password")
-        .populate("groupAdmin","-password");
-
-        // if no chat found with that id then send the error otherwise send updated chat
-        if(!removed){
+        const chat = await Chat.findById(chatId);
+        if (!chat) {
             res.status(404);
             throw new Error("Chat Not Found");
-        }else{
-            res.json(removed);
         }
+
+        // only the group admin can remove other members
+        if (chat.groupAdmin.toString() !== req.user._id.toString()) {
+            res.status(403);
+            throw new Error("Only the group admin can remove members");
+        }
+
+        const removedUser = await User.findById(userId).select("name");
+
+        const removed = await Chat.findByIdAndUpdate(
+            chatId,
+            { $pull: { users: userId } },
+            { new: true }
+        )
+            .populate("users", "-password")
+            .populate("groupAdmin", "-password");
+
+        if (!removed) {
+            res.status(404);
+            throw new Error("Chat Not Found");
+        }
+
+        // create the system message announcing the removal
+        const systemMessage = await Message.create({
+            sender: req.user._id,
+            content: `${removedUser?.name || "A user"} was removed from the group`,
+            chat: chatId,
+            messageType: "system",
+        });
+
+        const populatedSystemMessage = await systemMessage.populate("sender", "name pic");
+
+        await Chat.findByIdAndUpdate(chatId, { latestMessage: populatedSystemMessage });
+
+        res.json({ chat: removed, systemMessage: populatedSystemMessage });
+    }
+);
+
+export const leaveGroup = asyncHandler(
+    async (req, res) => {
+        // a user removes themselves from the group
+        const { chatId } = req.body;
+
+        const chat = await Chat.findById(chatId);
+        if (!chat) {
+            res.status(404);
+            throw new Error("Chat Not Found");
+        }
+
+        const isMember = chat.users.some(
+            (u) => u.toString() === req.user._id.toString()
+        );
+
+        if (!isMember) {
+            res.status(400);
+            throw new Error("You are not a member of this group");
+        }
+
+        const updated = await Chat.findByIdAndUpdate(
+            chatId,
+            { $pull: { users: req.user._id } },
+            { new: true }
+        )
+            .populate("users", "-password")
+            .populate("groupAdmin", "-password");
+
+        // create the system message announcing the departure
+        const systemMessage = await Message.create({
+            sender: req.user._id,
+            content: `${req.user.name} left the group`,
+            chat: chatId,
+            messageType: "system",
+        });
+
+        const populatedSystemMessage = await systemMessage.populate("sender", "name pic");
+
+        await Chat.findByIdAndUpdate(chatId, { latestMessage: populatedSystemMessage });
+
+        res.json({ chat: updated, systemMessage: populatedSystemMessage });
     }
 );
 

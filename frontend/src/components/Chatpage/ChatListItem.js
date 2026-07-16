@@ -58,7 +58,9 @@ const ChatListItem = ({ chat }) => {
                             }`}
                     >
                         {chat.latestMessage
-                            ? `${chat.latestMessage.sender.name}: ${chat.latestMessage.content}`
+                            ? chat.latestMessage.messageType === "system"
+                                ? chat.latestMessage.content
+                                : `${chat.latestMessage.sender.name}: ${chat.latestMessage.content}`
                             : "No messages yet"}
                     </p>
                 </div>

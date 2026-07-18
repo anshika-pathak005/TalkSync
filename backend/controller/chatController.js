@@ -458,32 +458,59 @@ export const leaveGroup = asyncHandler(
 
 
 // delete the chat
+
 export const deleteChatForMe = asyncHandler(async (req, res) => {
     const chatId = req.params.chatId;
     const userId = req.user._id;
 
     const chat = await Chat.findById(chatId);
-
     if (!chat) {
         res.status(404);
         throw new Error("Chat not found");
     }
 
-    // check if already deleted
-    const alreadyDeleted = chat.deletedBy.find(
+    const existingEntry = chat.deletedBy.find(
         (d) => d.user.toString() === userId.toString()
     );
 
-    if (alreadyDeleted) {
-        return res.json({ message: "Chat already deleted for you" });
+    if (existingEntry) {
+        // chat may have reappeared due to new messages since last
+        // delete — this is a fresh delete, so bump the cutoff forward
+        existingEntry.deletedAt = new Date();
+    } else {
+        chat.deletedBy.push({ user: userId, deletedAt: new Date() });
     }
 
-    chat.deletedBy.push({
-        user: userId,
-        deletedAt: new Date(),
-    });
-
     await chat.save();
-
     res.json({ message: "Chat deleted for you" });
 });
+
+// export const deleteChatForMe = asyncHandler(async (req, res) => {
+//     const chatId = req.params.chatId;
+//     const userId = req.user._id;
+
+//     const chat = await Chat.findById(chatId);
+
+//     if (!chat) {
+//         res.status(404);
+//         throw new Error("Chat not found");
+//     }
+
+//     // check if already deleted
+//     const alreadyDeleted = chat.deletedBy.find(
+//         (d) => d.user.toString() === userId.toString()
+//     );
+
+//     if (alreadyDeleted) {
+//         return res.json({ message: "Chat already deleted for you" });
+//     }
+
+//     chat.deletedBy.push({
+//         user: userId,
+//         deletedAt: new Date(),
+//     });
+
+//     await chat.save();
+
+//     res.json({ message: "Chat deleted for you" });
+// });

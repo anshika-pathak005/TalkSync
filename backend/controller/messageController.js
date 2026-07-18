@@ -71,7 +71,7 @@ export const sendMessage = asyncHandler(
                 chatId,
                 {
                     latestMessage: message,
-                    deletedBy: []
+                    // deletedBy: []
                 }
             );
 

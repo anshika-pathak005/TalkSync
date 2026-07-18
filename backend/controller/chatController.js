@@ -474,16 +474,45 @@ export const deleteChatForMe = asyncHandler(async (req, res) => {
     );
 
     if (existingEntry) {
-        // chat may have reappeared due to new messages since last
-        // delete — this is a fresh delete, so bump the cutoff forward
         existingEntry.deletedAt = new Date();
     } else {
         chat.deletedBy.push({ user: userId, deletedAt: new Date() });
     }
 
     await chat.save();
+
+    // NEW — only attempt permanent cleanup for 1:1 chats, since group
+    // chats can have many members and "everyone deleted" is a much
+    // rarer and messier condition to track correctly there
+    if (!chat.isGroupChat) {
+        await purgeMessagesDeletedByEveryone(chat);
+    }
+
     res.json({ message: "Chat deleted for you" });
 });
+
+// checks if EVERY user in this chat has deleted it, and if so,
+// permanently removes messages older than the earliest of their
+// cutoffs — those messages are unreachable by anyone from now on,
+// since deletedAt only ever moves forward in time, never back
+const purgeMessagesDeletedByEveryone = async (chat) => {
+    const allUsersDeleted = chat.users.every((u) =>
+        chat.deletedBy.some((d) => d.user.toString() === u.toString())
+    );
+
+    if (!allUsersDeleted) return; // at least one user hasn't deleted — nothing is safe yet
+
+    // the earliest cutoff among all users — messages at or before
+    // this point are invisible to EVERY user in the chat
+    const cutoff = chat.deletedBy.reduce((earliest, entry) => {
+        return entry.deletedAt < earliest ? entry.deletedAt : earliest;
+    }, chat.deletedBy[0].deletedAt);
+
+    await Message.deleteMany({
+        chat: chat._id,
+        createdAt: { $lte: cutoff },
+    });
+};
 
 // export const deleteChatForMe = asyncHandler(async (req, res) => {
 //     const chatId = req.params.chatId;

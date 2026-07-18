@@ -47,8 +47,27 @@ export const accessChat = asyncHandler(
 
         // now isChat has the all of the data so send it to user if it has something
         if (isChat.length > 0) {
-            res.send(isChat[0]); //because there will be only one chat between these 2 users
+            const chatDoc = isChat[0];
+
+            const hadDeleted = chatDoc.deletedBy?.some(
+                (d) => d.user.toString() === req.user._id.toString()
+            );
+
+            if (hadDeleted) {
+                const alreadyReopened = chatDoc.reopenedBy?.some(
+                    (id) => id.toString() === req.user._id.toString()
+                );
+
+                if (!alreadyReopened) {
+                    await Chat.findByIdAndUpdate(chatDoc._id, {
+                        $addToSet: { reopenedBy: req.user._id },
+                    });
+                }
+            }
+
+            res.send(chatDoc);
         }
+
         else {
             // means chat doesnot exists so now we will create a new chat
 
@@ -76,6 +95,7 @@ export const accessChat = asyncHandler(
 )
 
 // this function fetches all the chats for the logged in user and returns them
+
 export const fetchChats = asyncHandler(
     async (req, res) => {
         try {
@@ -127,7 +147,14 @@ export const fetchChats = asyncHandler(
                             return true;
                         }
 
-                        // case 3: user deleted & no new message
+                        // case 3: user deleted, but he reopened the chat so he should see in message list , yet with no messages
+                        const manuallyReopened = chat.reopenedBy?.some(
+                            (id) => id.toString() === req.user._id.toString()
+                        );
+
+                        if (manuallyReopened) return true;
+
+                        // case 4: user deleted & no new message
                         return false;
                     });
 
@@ -215,16 +242,16 @@ export const createGroupChat = asyncHandler(
 
             // now we will fetch the full details of the group chat and send it in the response
             const fullGroupChat = await Chat.findOne({ _id: groupChat._id })
-            .populate("users","-password")
-            .populate("groupAdmin","-password");
+                .populate("users", "-password")
+                .populate("groupAdmin", "-password");
 
             res.status(200).json(fullGroupChat);
-        
+
         } catch (error) {
             res.status(400);
             throw new Error(error.message);
         }
-        
+
 
         // const { users, name } = req.body;
     }
@@ -238,18 +265,18 @@ export const renameGroup = asyncHandler(
         const { chatId, chatName } = req.body;
 
         // now update the chat name
-        const updatedChat = await Chat.findByIdAndUpdate(chatId,{
+        const updatedChat = await Chat.findByIdAndUpdate(chatId, {
             chatName: chatName,
         },
-        { new: true } )//to return the updated chat
-        .populate("users","-password")
-        .populate("groupAdmin","-password");
+            { new: true })//to return the updated chat
+            .populate("users", "-password")
+            .populate("groupAdmin", "-password");
 
         // if no chat found with that id then send the error otherwise send updated chat
-        if(!updatedChat){
+        if (!updatedChat) {
             res.status(404);
             throw new Error("Chat Not Found");
-        }else{
+        } else {
             res.json(updatedChat);
         }
     }

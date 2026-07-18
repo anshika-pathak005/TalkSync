@@ -51,9 +51,8 @@ const ChatMessages = ({ messages, isTyping, systemNotice }) => {
                     // badge, completely bypassing avatar/bubble alignment logic
                     if (m.messageType === "system") {
                         return (
-                            <div key={m._id} className="flex justify-center my-2">
-                                <span className="text-xs text-saltwater bg-swan px-3 py-1.5
-                    rounded-full border border-nordic/40 text-center max-w-[85%]">
+                            <div key={m._id} className="flex justify-center my-1.5">
+                                <span className="text-[11px] sm:text-xs text-saltwater/70 text-center max-w-[85%] px-2">
                                     {m.content}
                                 </span>
                             </div>
@@ -162,13 +161,12 @@ const ChatMessages = ({ messages, isTyping, systemNotice }) => {
                 </div>
             )}
 
-            {/* NEW: system notice — real messages ke map se poori tarah
-          alag, isliye ChatsLogic ke index-based helpers isse kabhi
-          touch hi nahi karte */}
+            {/* system notice — plain grey text, no bubble/border, minimal
+    emphasis. Smaller on narrow screens via text-[11px] base,
+    slightly larger from sm: breakpoint up */}
             {systemNotice && (
-                <div className="flex justify-center my-2">
-                    <span className="text-xs text-saltwater bg-swan px-3 py-1.5
-            rounded-full border border-nordic/40 text-center max-w-[85%]">
+                <div className="flex justify-center my-1.5">
+                    <span className="text-[11px] sm:text-xs text-saltwater/70 text-center max-w-[85%] px-2">
                         {systemNotice}
                     </span>
                 </div>

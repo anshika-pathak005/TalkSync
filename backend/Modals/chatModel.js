@@ -31,6 +31,11 @@ const chatModel = mongoose.Schema(
                 },
             },
         ],
+        // NEW — tracks users who manually reopened a chat after deleting it
+        // (e.g. via Connections page). Message history stays hidden per
+        // deletedAt (permanent), but the chat itself becomes visible in
+        // their list again, immediately, without needing a new message first.
+        reopenedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
 
     },
     {timestamps: true,}

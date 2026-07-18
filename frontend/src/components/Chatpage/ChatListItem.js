@@ -104,7 +104,7 @@ const ChatListItem = ({ chat }) => {
                     <p className="font-semibold text-sm truncate">
                         {!chat.isGroupChat ? getSender(user, chat.users) : chat.chatName}
                     </p>
-                    <p
+                    {/* <p
                         className={`text-xs truncate ${isActive ? "text-white/80" : "text-saltwater"
                             }`}
                     >
@@ -113,7 +113,7 @@ const ChatListItem = ({ chat }) => {
                                 ? chat.latestMessage.content
                                 : `${chat.latestMessage.sender.name}: ${chat.latestMessage.content}`
                             : "No messages yet"}
-                    </p>
+                    </p> */}
                 </div>
             </div>
 

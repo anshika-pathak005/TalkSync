@@ -1,4 +1,6 @@
-import React, { useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Trash2 } from "lucide-react";
+import axios from "axios";
 import {
     isSameSender,
     isLastMessage,
@@ -8,10 +10,14 @@ import {
 import { ChatState } from "../../context/ChatProvider";
 import ProfileModal from "../others/profileModal";
 
-const ChatMessages = ({ messages, isTyping, systemNotice }) => {
+const ChatMessages = ({ messages, isTyping, systemNotice, socket, onMessageDeletedForMe, onMessageDeletedForEveryone }) => {
     // anchor div right after the last message — scrollIntoView on
     // this always lands exactly at the bottom of the chat
     const messagesEndRef = useRef(null);
+
+    // the scrollable messages pane — used to measure how much space is
+    // actually available above/below a bubble before opening its menu
+    const containerRef = useRef(null);
 
     // remembers how many messages we had last render, so we can tell
     // "chat just opened" (0 -> many, should jump instantly) apart from
@@ -23,6 +29,13 @@ const ChatMessages = ({ messages, isTyping, systemNotice }) => {
     // controls the "view sender's profile" popup, opens when their
     // avatar is clicked
     const [profileUser, setProfileUser] = useState(null);
+
+    // inside the component, new state
+    const [openMenuId, setOpenMenuId] = useState(null);
+    // which way the open menu should render — recomputed fresh every
+    // time a menu opens, based on real available space (see openMenuFor)
+    const [menuDirection, setMenuDirection] = useState("down");
+    const [deletingId, setDeletingId] = useState(null);
 
     // useLayoutEffect runs BEFORE the browser paints — so scrolling
     // happens before you ever see the wrong position. A normal
@@ -42,8 +55,90 @@ const ChatMessages = ({ messages, isTyping, systemNotice }) => {
         // always visible and doesn't get hidden below the last message
     }, [messages, isTyping]);
 
+    // closes an open delete-menu when you click/tap anywhere else on
+    // the page — the bubble's own handler calls stopPropagation, so
+    // this only ever fires for clicks OUTSIDE the open menu
+    useEffect(() => {
+        if (!openMenuId) return;
+        const closeMenu = () => setOpenMenuId(null);
+        document.addEventListener("click", closeMenu);
+        return () => document.removeEventListener("click", closeMenu);
+    }, [openMenuId]);
+
+    // approx rendered height of the dropdown (1 button for messages that
+    // aren't mine, 2 for ones that are) — used to decide which way it fits
+    const MENU_HEIGHT_ONE_ROW = 44;
+    const MENU_HEIGHT_TWO_ROW = 80;
+
+    // opens (or closes, if already open) the delete-menu for message `m`,
+    // measuring real space above/below the bubble inside the scrollable
+    // pane first so the menu opens whichever direction actually has room —
+    // instead of guessing from the message's position in the list
+    const openMenuFor = (m, e) => {
+        if (m.isDeletedForEveryone) return;
+
+        if (openMenuId === m._id) {
+            setOpenMenuId(null);
+            return;
+        }
+
+        const containerRect = containerRef.current?.getBoundingClientRect();
+        const bubbleRect = e.currentTarget.getBoundingClientRect();
+        const menuHeight =
+            m.sender._id === user._id ? MENU_HEIGHT_TWO_ROW : MENU_HEIGHT_ONE_ROW;
+
+        if (containerRect) {
+            const spaceBelow = containerRect.bottom - bubbleRect.bottom;
+            const spaceAbove = bubbleRect.top - containerRect.top;
+            // only flip upward if there's genuinely not enough room below
+            // AND there's more room above than below
+            setMenuDirection(
+                spaceBelow < menuHeight && spaceAbove > spaceBelow ? "up" : "down"
+            );
+        }
+
+        setOpenMenuId(m._id);
+    };
+
+    const authConfig = {
+        headers: { Authorization: `Bearer ${user.token}` },
+    };
+
+    const handleDeleteForMe = async (messageId) => {
+        try {
+            setDeletingId(messageId);
+            await axios.put(`/api/message/${messageId}/delete-for-me`, {}, authConfig);
+            // remove it from local state immediately — only I should stop seeing it
+            onMessageDeletedForMe(messageId); // callback prop, see below
+        } catch (error) {
+            console.log("Failed to delete for me", error);
+        } finally {
+            setDeletingId(null);
+            setOpenMenuId(null);
+        }
+    };
+
+    const handleDeleteForEveryone = async (messageId) => {
+        try {
+            setDeletingId(messageId);
+            const { data } = await axios.put(
+                `/api/message/${messageId}/delete-for-everyone`,
+                {},
+                authConfig
+            );
+            // broadcast to the other participant(s) live
+            socket.emit("message deleted", data.updatedMessage); // needs socket prop passed down
+            onMessageDeletedForEveryone(data.updatedMessage); // callback prop, updates local state
+        } catch (error) {
+            console.log("Failed to delete for everyone", error);
+        } finally {
+            setDeletingId(null);
+            setOpenMenuId(null);
+        }
+    };
+
     return (
-        <div className="flex flex-col overflow-y-auto h-full p-3">
+        <div ref={containerRef} className="flex flex-col overflow-y-auto h-full p-3">
             {messages &&
                 messages.map((m, i) => {
 
@@ -104,7 +199,17 @@ const ChatMessages = ({ messages, isTyping, systemNotice }) => {
                                 </button>
                             )}
 
-                            {/* the message bubble itself —
+                            {/* the message bubble itself — SAME element as before
+                  (still the direct flex-item span carrying marginLeft/
+                  maxWidth), just with position:relative + the two menu
+                  triggers added. We deliberately do NOT wrap this span in
+                  an extra <div> — a wrapping div would become the actual
+                  flex item instead, leaving this span's `maxWidth: 75%`
+                  to resolve against an auto-sized parent (a circular
+                  percentage reference), which CSS resolves by dropping
+                  the cap entirely. That's what stretched bubbles full
+                  width last time. Keeping this span as the flex item
+                  avoids that.
                   marginLeft comes straight from isSameSenderMargin:
                   - "auto"  -> my own messages, pushes bubble to the far right
                   -  33px   -> other person's consecutive message with NO
@@ -113,7 +218,21 @@ const ChatMessages = ({ messages, isTyping, systemNotice }) => {
                   -  0      -> other person's message that DOES have an
                               avatar right next to it this line */}
                             <span
-                                className={`text-sm shadow-sm
+                                onContextMenu={(e) => {
+                                    // desktop: right-click opens the menu instead
+                                    // of the native browser context menu
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    openMenuFor(m, e);
+                                }}
+                                onClick={(e) => {
+                                    // touch screens: a tap fires as a click with no
+                                    // right-click equivalent, so this opens the same menu
+                                    e.stopPropagation();
+                                    openMenuFor(m, e);
+                                }}
+                                className={`text-sm shadow-sm relative select-none
+                  ${m.isDeletedForEveryone ? "italic opacity-60" : "cursor-pointer"}
                   ${isOwn
                                         ? "bg-gradient-to-r from-peacock to-cerulean text-white"
                                         : "bg-white text-viridian border border-nordic/50"
@@ -127,6 +246,52 @@ const ChatMessages = ({ messages, isTyping, systemNotice }) => {
                                 }}
                             >
                                 {m.content}
+
+                                {/* delete menu — opens on right-click (desktop) or tap
+                    (touch). Anchored to THIS span via position:relative
+                    above, so it always tracks the bubble regardless of
+                    where it lands in the scroll list.
+                    - horizontal: right-0 for my own messages (which hug
+                      the right edge), left-0 for the other person's
+                      (which hug the left edge) — either way the menu
+                      opens toward the middle of the screen, never off
+                      the edge, even on narrow phones.
+                    - vertical: menuDirection is computed fresh on open
+                      (see openMenuFor) from the bubble's actual position
+                      inside the scrollable pane, so it opens upward near
+                      the bottom, downward near the top (e.g. the very
+                      first message), and never gets clipped either way. */}
+                                {openMenuId === m._id && (
+                                    <div
+                                        onClick={(e) => e.stopPropagation()}
+                                        className={`absolute w-40 max-w-[70vw] bg-white rounded-xl
+                        shadow-card-lg border border-nordic/40 z-20 py-1 text-left normal-case
+                        ${isOwn ? "right-0" : "left-0"}
+                        ${menuDirection === "up" ? "bottom-full mb-1" : "top-full mt-1"}`}
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteForMe(m._id)}
+                                            disabled={deletingId === m._id}
+                                            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs
+                          text-viridian hover:bg-swan transition-colors disabled:opacity-60"
+                                        >
+                                            <Trash2 size={12} /> Delete for Me
+                                        </button>
+
+                                        {isOwn && !m.isDeletedForEveryone && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDeleteForEveryone(m._id)}
+                                                disabled={deletingId === m._id}
+                                                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs
+                            text-red-500 hover:bg-red-50 transition-colors disabled:opacity-60"
+                                            >
+                                                <Trash2 size={12} /> Delete for Everyone
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                             </span>
                         </div>
                     );

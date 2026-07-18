@@ -116,6 +116,16 @@ io.on("connection",(socket) => {
 
     })
 
+    socket.on("message deleted", (updatedMessage) => {
+        var chat = updatedMessage.chat;
+        if (!chat.users) return console.log('chat.users not defined');
+
+        chat.users.forEach(user => {
+            if (user._id == updatedMessage.sender._id) return;
+            socket.in(user._id).emit("message deleted", updatedMessage);
+        });
+    });
+
     // socket for typing indicator
     socket.on("typing",(room)=> socket.in(room).emit("typing"));
     socket.on("stop typing",(room)=> socket.in(room).emit("stop typing"));

@@ -108,7 +108,8 @@ export const fetchAllMessages = asyncHandler(async (req, res) => {
         // fetch only messages created AFTER deletion time
         messages = await Message.find({
             chat: req.params.chatId,
-            createdAt: { $gt: deletedEntry.deletedAt }
+            createdAt: { $gt: deletedEntry.deletedAt },
+            deletedFor: { $ne: req.user._id },
         })
             .populate("sender", "name email pic")
             .populate("chat");
@@ -116,7 +117,8 @@ export const fetchAllMessages = asyncHandler(async (req, res) => {
     else {
         // if user never deleted the chat, fetch all messages
         messages = await Message.find({
-            chat: req.params.chatId
+            chat: req.params.chatId,
+            deletedFor: { $ne: req.user._id },
         })
             .populate("sender", "name email pic")
             .populate("chat");
@@ -124,4 +126,88 @@ export const fetchAllMessages = asyncHandler(async (req, res) => {
 
     // send messages as response
     res.json(messages);
+});
+
+
+// delete for me — only affects the requesting user's own view.
+// works on ANY message in a chat you're part of, sent by you or
+// received, exactly like WhatsApp
+export const deleteMessageForMe = asyncHandler(async (req, res) => {
+    const { messageId } = req.params;
+
+    const message = await Message.findById(messageId).populate("chat");
+    if (!message) {
+        res.status(404);
+        throw new Error("Message not found");
+    }
+
+    // confirm the requester is actually part of this chat
+    const isParticipant = message.chat.users.some(
+        (u) => u.toString() === req.user._id.toString()
+    );
+    if (!isParticipant) {
+        res.status(403);
+        throw new Error("You are not part of this chat");
+    }
+
+    // avoid duplicate entries if somehow called twice
+    const alreadyDeleted = message.deletedFor.some(
+        (id) => id.toString() === req.user._id.toString()
+    );
+
+    if (!alreadyDeleted) {
+        message.deletedFor.push(req.user._id);
+        await message.save();
+    }
+
+    res.json({ message: "Message deleted for you" });
+});
+
+// delete for everyone — only the ORIGINAL SENDER can do this.
+// permanently overwrites content in the DB, broadcasts live via
+// socket (frontend handles the emit, same pattern as system messages)
+export const deleteMessageForEveryone = asyncHandler(async (req, res) => {
+    const { messageId } = req.params;
+
+    const message = await Message.findById(messageId)
+        .populate("chat")
+        .populate("sender", "name pic");
+
+    if (!message) {
+        res.status(404);
+        throw new Error("Message not found");
+    }
+
+    if (message.sender._id.toString() !== req.user._id.toString()) {
+        res.status(403);
+        throw new Error("You can only delete your own messages for everyone");
+    }
+
+    // overwrite content permanently
+    message.content = "This message was deleted";
+    message.isDeletedForEveryone = true;
+    await message.save();
+
+    // update latestMessage preview if this was it
+    const chat = await Chat.findById(message.chat._id);
+    if (chat.latestMessage?.toString() === message._id.toString()) {
+        await Chat.findByIdAndUpdate(message.chat._id, {
+            latestMessage: message._id,
+        });
+    }
+
+    // ── REPLACE THE OLD res.json(...) LINE WITH THIS BLOCK ──
+    // populate chat.users fully before sending — required so the
+    // socket broadcast on the frontend (server.js's "message deleted"
+    // handler) can loop over chat.users to know who to notify.
+    // Without this, chat.users would be undefined on the emitted
+    // payload and the broadcast would silently drop, same bug we
+    // hit earlier with system messages.
+    let populatedMessage = await message.populate("chat");
+    populatedMessage = await User.populate(populatedMessage, {
+        path: "chat.users",
+        select: "name pic email",
+    });
+
+    res.json({ updatedMessage: populatedMessage });
 });

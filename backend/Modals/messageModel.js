@@ -12,6 +12,15 @@ const messageModel = mongoose.Schema(
             enum: ["text", "system"],
             default: "text",
         },
+        // NEW — "delete for me": list of user IDs who should no
+        // longer see this message. Doesn't touch content at all,
+        // purely a per-user visibility filter at fetch time.
+        deletedFor: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
+        // NEW — "delete for everyone": once true, content is
+        // permanently overwritten server-side, visible to all
+        // participants as a placeholder, forever.
+        isDeletedForEveryone: { type: Boolean, default: false },
     },
     {
         timestamps : true,

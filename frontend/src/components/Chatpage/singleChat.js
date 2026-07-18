@@ -172,6 +172,19 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
         return () => socket.off("message recieved", handleMessage);
     }, [selectedChatCompare]);
 
+    useEffect(() => {
+        const handleDeletedForEveryone = (updatedMessage) => {
+            if (selectedChatCompare?._id === updatedMessage.chat._id) {
+                setMessages((prev) =>
+                    prev.map((m) => (m._id === updatedMessage._id ? updatedMessage : m))
+                );
+            }
+        };
+
+        socket.on("message deleted", handleDeletedForEveryone);
+        return () => socket.off("message deleted", handleDeletedForEveryone);
+    }, [selectedChatCompare]);
+    
     // sends the message currently typed in the input box
     const sendMessage = async () => {
         if (!newMessage) return;
@@ -312,7 +325,7 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
                                 fetchChatAgain={fetchChatAgain}
                                 setFetchChatAgain={setFetchChatAgain}
                                 fetchAllMessages={fetchAllMessages}
-                                    socket={socket}
+                                socket={socket}
                             />
                         )}
                     </div>
@@ -330,7 +343,16 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
                             </div>
                         ) : (
                             <div className="messages flex-1">
-                                    <ChatMessages messages={messages} isTyping={isTyping} systemNotice={systemNotice} />
+                                <ChatMessages messages={messages} isTyping={isTyping} systemNotice={systemNotice} isGroupChat={selectedChat?.isGroupChat}
+                                    socket={socket}
+                                    onMessageDeletedForMe={(id) =>
+                                        setMessages((prev) => prev.filter((m) => m._id !== id))
+                                    }
+                                    onMessageDeletedForEveryone={(updatedMessage) =>
+                                        setMessages((prev) =>
+                                            prev.map((m) => (m._id === updatedMessage._id ? updatedMessage : m))
+                                        )
+                                    } />
                             </div>
                         )}
 

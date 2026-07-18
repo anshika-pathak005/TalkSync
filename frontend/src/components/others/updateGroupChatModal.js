@@ -25,25 +25,25 @@ const ConnectionAddRow = ({ person, onAdd, disabled }) => (
     <motion.div
         whileTap={disabled ? {} : { scale: 0.98 }}
         onClick={() => !disabled && onAdd()}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border border-transparent
+        className={`flex items-center gap-2 sm:gap-3 px-2.5 sm:px-3 py-2 sm:py-2.5 rounded-xl border border-transparent
             transition-all duration-150
             ${disabled ? "opacity-60 cursor-default" : "cursor-pointer hover:border-nordic/40 hover:bg-swan/60 bg-white"}`}
     >
-        <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-nordic/40
+        <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full overflow-hidden border-2 border-nordic/40
             flex items-center justify-center shrink-0 bg-gradient-to-br from-peacock/20 to-cerulean/20">
             {person.pic ? (
                 <img src={person.pic} alt={person.name} className="w-full h-full object-cover" />
             ) : (
-                <span className="text-sm font-display text-viridian font-semibold">
+                <span className="text-xs sm:text-sm font-display text-viridian font-semibold">
                     {person.name?.charAt(0)?.toUpperCase()}
                 </span>
             )}
         </div>
         <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-viridian truncate">{person.name}</p>
-            <p className="text-xs text-saltwater truncate">{person.email}</p>
+            <p className="text-xs sm:text-sm font-semibold text-viridian truncate">{person.name}</p>
+            <p className="text-[11px] sm:text-xs text-saltwater truncate">{person.email}</p>
         </div>
-        <UserPlus size={16} className="text-cerulean shrink-0" />
+        <UserPlus size={14} className="text-cerulean shrink-0 sm:w-4 sm:h-4" />
     </motion.div>
 );
 
@@ -375,31 +375,31 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 20 }}
                             transition={{ type: "spring", stiffness: 300, damping: 28 }}
-                            className="fixed inset-0 z-50 flex items-center justify-center px-4"
+                            className="fixed inset-0 z-50 flex items-center justify-center px-3 sm:px-4"
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl 
-                                border border-nordic/40 overflow-hidden max-h-[90vh] flex flex-col">
+                            <div className="w-full max-w-2xl bg-white rounded-xl sm:rounded-2xl shadow-2xl
+                                border border-nordic/40 overflow-hidden max-h-[95vh] sm:max-h-[90vh] flex flex-col">
 
                                 {/* Header */}
-                                <div className="flex items-center justify-between px-6 py-4 
+                                <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-3 sm:py-4
                                     border-b border-nordic/30 bg-gradient-to-r from-peacock/10 to-cerulean/5">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2.5 bg-viridian/10 rounded-xl">
-                                            <Users size={22} className="text-viridian" />
+                                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                                        <div className="p-2 sm:p-2.5 bg-viridian/10 rounded-xl shrink-0">
+                                            <Users size={18} className="text-viridian sm:w-[22px] sm:h-[22px]" />
                                         </div>
-                                        <div>
-                                            <h2 className="font-display text-viridian text-2xl leading-tight">
+                                        <div className="min-w-0">
+                                            <h2 className="font-display text-viridian text-lg sm:text-2xl leading-tight truncate">
                                                 {selectedChat?.chatName}
                                             </h2>
-                                            <div className="flex items-center gap-3 mt-1">
-                                                <span className="text-sm text-saltwater flex items-center gap-1.5">
-                                                    <Users size={14} />
+                                            <div className="flex items-center gap-2 sm:gap-3 mt-0.5 sm:mt-1 flex-wrap">
+                                                <span className="text-xs sm:text-sm text-saltwater flex items-center gap-1 sm:gap-1.5">
+                                                    <Users size={12} className="sm:w-[14px] sm:h-[14px]" />
                                                     {selectedChat?.users?.length} Members
                                                 </span>
                                                 {isAdmin && (
-                                                    <span className="text-sm text-peacock flex items-center gap-1.5">
-                                                        <Crown size={14} />
+                                                    <span className="text-xs sm:text-sm text-peacock flex items-center gap-1 sm:gap-1.5">
+                                                        <Crown size={12} className="sm:w-[14px] sm:h-[14px]" />
                                                         Admin
                                                     </span>
                                                 )}
@@ -408,23 +408,23 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                                     </div>
                                     <button
                                         onClick={handleClose}
-                                        className="p-1.5 rounded-lg hover:bg-swan text-saltwater 
-                                            hover:text-viridian transition-colors"
+                                        className="p-1.5 rounded-lg hover:bg-swan text-saltwater
+                                            hover:text-viridian transition-colors shrink-0"
                                     >
-                                        <X size={22} />
+                                        <X size={20} className="sm:w-[22px] sm:h-[22px]" />
                                     </button>
                                 </div>
 
                                 {/* Body */}
-                                <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+                                <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 space-y-4 sm:space-y-5">
                                     {/* Members List */}
-                                    <div className="space-y-2.5">
-                                        <label className="text-sm font-semibold text-viridian/80 flex items-center gap-2">
+                                    <div className="space-y-2 sm:space-y-2.5">
+                                        <label className="text-xs sm:text-sm font-semibold text-viridian/80 flex items-center gap-2">
                                             <User size={16} />
                                             Group Members
                                         </label>
-                                        <div className="flex flex-wrap gap-2 p-3 bg-swan/60 rounded-xl 
-                                            border border-nordic/30 min-h-[60px]">
+                                        <div className="flex flex-wrap gap-1.5 sm:gap-2 p-2.5 sm:p-3 bg-swan/60 rounded-xl
+                                            border border-nordic/30 min-h-[52px] sm:min-h-[60px]">
                                             {selectedChat?.users?.map((u) => (
                                                 <div key={u._id} className="relative">
                                                     <UserListforGroup
@@ -449,19 +449,19 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                                     </div>
 
                                     {/* Rename Section */}
-                                    <div className="space-y-2.5">
-                                        <label className="text-sm font-semibold text-viridian/80 flex items-center gap-2">
+                                    <div className="space-y-2 sm:space-y-2.5">
+                                        <label className="text-xs sm:text-sm font-semibold text-viridian/80 flex items-center gap-2">
                                             <Edit2 size={16} />
                                             Rename Group
                                         </label>
-                                        <div className="flex gap-3">
+                                        <div className="flex gap-2 sm:gap-3">
                                             <input
                                                 type="text"
                                                 placeholder="Enter new group name..."
                                                 value={groupChatName}
                                                 onChange={(e) => setGroupChatName(e.target.value)}
-                                                className="flex-1 px-4 py-3 rounded-xl bg-swan/60 border border-nordic/30 
-                                                    text-base text-viridian placeholder:text-saltwater/60
+                                                className="flex-1 min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-swan/60 border border-nordic/30
+                                                    text-sm sm:text-base text-viridian placeholder:text-saltwater/60
                                                     focus:outline-none focus:ring-2 focus:ring-cerulean/40 focus:border-cerulean
                                                     transition-all duration-200"
                                             />
@@ -469,15 +469,15 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                                                 whileTap={{ scale: 0.97 }}
                                                 onClick={handleRename}
                                                 disabled={renameLoading || !groupChatName.trim()}
-                                                className="px-5 py-3 rounded-xl bg-gradient-to-r from-peacock to-cerulean 
-                                                    text-white text-base font-semibold shadow-3d hover:shadow-3d-hover 
+                                                className="px-3 sm:px-5 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-peacock to-cerulean
+                                                    text-white text-sm sm:text-base font-semibold shadow-3d hover:shadow-3d-hover
                                                     disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none
-                                                    transition-all duration-200 flex items-center gap-2 whitespace-nowrap"
+                                                    transition-all duration-200 flex items-center gap-1.5 sm:gap-2 whitespace-nowrap shrink-0"
                                             >
                                                 {renameLoading ? (
-                                                    <Loader2 size={20} className="animate-spin" />
+                                                    <Loader2 size={18} className="animate-spin sm:w-5 sm:h-5" />
                                                 ) : (
-                                                    <Edit2 size={18} />
+                                                    <Edit2 size={16} className="sm:w-[18px] sm:h-[18px]" />
                                                 )}
                                                 Update
                                             </motion.button>
@@ -486,8 +486,8 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
 
                                     {/* Add Members Section - Only for Admins, sourced from Connections */}
                                     {isAdmin && (
-                                        <div className="space-y-2.5">
-                                            <label className="text-sm font-semibold text-viridian/80 flex items-center gap-2">
+                                        <div className="space-y-2 sm:space-y-2.5">
+                                            <label className="text-xs sm:text-sm font-semibold text-viridian/80 flex items-center gap-2">
                                                 <UserPlus size={16} />
                                                 Add Members from Connections
                                             </label>
@@ -499,28 +499,28 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                                                         placeholder="Filter your connections..."
                                                         value={filterQuery}
                                                         onChange={(e) => setFilterQuery(e.target.value)}
-                                                        className="w-full px-4 py-2.5 pl-10 rounded-xl bg-swan/60 border border-nordic/30 
-                                                            text-sm text-viridian placeholder:text-saltwater/60
+                                                        className="w-full px-3 sm:px-4 py-2 sm:py-2.5 pl-9 sm:pl-10 rounded-xl bg-swan/60 border border-nordic/30
+                                                            text-xs sm:text-sm text-viridian placeholder:text-saltwater/60
                                                             focus:outline-none focus:ring-2 focus:ring-cerulean/40 focus:border-cerulean
                                                             transition-all duration-200"
                                                     />
                                                     <Search
-                                                        size={16}
-                                                        className="absolute left-3.5 top-1/2 -translate-y-1/2 text-saltwater"
+                                                        size={14}
+                                                        className="absolute left-3 sm:left-3.5 top-1/2 -translate-y-1/2 text-saltwater sm:w-4 sm:h-4"
                                                     />
                                                 </div>
                                             )}
 
-                                            <div className="max-h-52 overflow-y-auto border border-nordic/20 
-                                                rounded-xl p-1.5 bg-swan/40">
+                                            <div className="max-h-44 sm:max-h-52 overflow-y-auto border border-nordic/20
+                                                rounded-xl p-1 sm:p-1.5 bg-swan/40">
                                                 {connectionsLoading ? (
                                                     <div className="flex justify-center py-6">
                                                         <Loader2 size={20} className="animate-spin text-cerulean" />
                                                     </div>
                                                 ) : availableConnections.length === 0 ? (
-                                                    <div className="flex flex-col items-center justify-center py-6 gap-1.5
-                                                        text-saltwater text-sm text-center px-4">
-                                                        <Users size={22} className="text-nordic" />
+                                                    <div className="flex flex-col items-center justify-center py-5 sm:py-6 gap-1.5
+                                                        text-saltwater text-xs sm:text-sm text-center px-4">
+                                                        <Users size={20} className="text-nordic sm:w-[22px] sm:h-[22px]" />
                                                         {connections.length === 0
                                                             ? "You have no connections yet."
                                                             : "All your connections are already in this group."}
@@ -542,14 +542,14 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                                     )}
 
                                     {/* Info Notice */}
-                                    <div className="flex items-start gap-3 p-4 bg-cerulean/5 rounded-xl 
+                                    <div className="flex items-start gap-2.5 sm:gap-3 p-3 sm:p-4 bg-cerulean/5 rounded-xl
                                         border border-cerulean/10">
                                         {isAdmin ? (
                                             <>
-                                                <Crown size={18} className="text-yellow-500 mt-0.5 flex-shrink-0" />
+                                                <Crown size={16} className="text-yellow-500 mt-0.5 flex-shrink-0 sm:w-[18px] sm:h-[18px]" />
                                                 <div>
-                                                    <p className="text-sm font-semibold text-viridian/80">Admin Controls</p>
-                                                    <p className="text-sm text-viridian/60 leading-relaxed">
+                                                    <p className="text-xs sm:text-sm font-semibold text-viridian/80">Admin Controls</p>
+                                                    <p className="text-xs sm:text-sm text-viridian/60 leading-relaxed">
                                                         You can add members from your connections, remove
                                                         members, and rename the group. Click on any
                                                         member to remove them from the group.
@@ -558,10 +558,10 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                                             </>
                                         ) : (
                                             <>
-                                                <User size={18} className="text-cerulean mt-0.5 flex-shrink-0" />
+                                                <User size={16} className="text-cerulean mt-0.5 flex-shrink-0 sm:w-[18px] sm:h-[18px]" />
                                                 <div>
-                                                    <p className="text-sm font-semibold text-viridian/80">Member View</p>
-                                                    <p className="text-sm text-viridian/60 leading-relaxed">
+                                                    <p className="text-xs sm:text-sm font-semibold text-viridian/80">Member View</p>
+                                                    <p className="text-xs sm:text-sm text-viridian/60 leading-relaxed">
                                                         You're a member of this group. Only admins can add or remove members.
                                                     </p>
                                                 </div>
@@ -571,21 +571,21 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                                 </div>
 
                                 {/* Footer */}
-                                <div className="flex items-center justify-between px-6 py-4 
+                                <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-3 sm:py-4
                                     border-t border-nordic/30 bg-swan/50">
                                     <motion.button
                                         whileTap={{ scale: 0.97 }}
                                         onClick={handleLeaveGroup}
                                         disabled={leaveGroupLoading}
-                                        className="px-4 py-3 rounded-xl bg-red-50 text-red-600 
+                                        className="px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-red-50 text-red-600
                                             hover:bg-red-100 transition-all duration-200
-                                            flex items-center gap-2 text-base font-semibold
-                                            border border-red-200 hover:border-red-300"
+                                            flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base font-semibold
+                                            border border-red-200 hover:border-red-300 whitespace-nowrap"
                                     >
                                         {leaveGroupLoading ? (
-                                            <Loader2 size={20} className="animate-spin" />
+                                            <Loader2 size={18} className="animate-spin sm:w-5 sm:h-5" />
                                         ) : (
-                                            <LogOut size={18} />
+                                            <LogOut size={16} className="sm:w-[18px] sm:h-[18px]" />
                                         )}
                                         Leave Group
                                     </motion.button>
@@ -593,11 +593,11 @@ const UpdateGroupChatModal = ({ fetchChatAgain, setFetchChatAgain, fetchAllMessa
                                     <motion.button
                                         whileTap={{ scale: 0.97 }}
                                         onClick={handleClose}
-                                        className="px-6 py-3 rounded-xl bg-gradient-to-r from-peacock to-cerulean 
-                                            text-white text-base font-semibold shadow-3d hover:shadow-3d-hover 
-                                            transition-all duration-200 flex items-center gap-2.5"
+                                        className="px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-peacock to-cerulean
+                                            text-white text-sm sm:text-base font-semibold shadow-3d hover:shadow-3d-hover
+                                            transition-all duration-200 flex items-center gap-2 sm:gap-2.5 whitespace-nowrap"
                                     >
-                                        <Save size={18} />
+                                        <Save size={16} className="sm:w-[18px] sm:h-[18px]" />
                                         Save & Close
                                     </motion.button>
                                 </div>

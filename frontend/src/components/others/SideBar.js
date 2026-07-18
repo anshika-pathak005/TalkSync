@@ -9,6 +9,7 @@ import {
     ChevronDown,
     LogOut,
     User,
+    Users,
     MessageCircle,
     X,
     Loader2,
@@ -483,7 +484,7 @@ const SideBar = () => {
                                         className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm
       text-viridian hover:bg-swan transition-colors"
                                     >
-                                        <User size={15} className="text-saltwater" />
+                                        <Users size={15} className="text-saltwater" />
                                         Connections
                                     </button>
 

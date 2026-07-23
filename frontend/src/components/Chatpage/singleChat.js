@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { ChatState } from "../../context/ChatProvider";
 import { ArrowLeft, Send, Loader2, MessageCircle } from "lucide-react";
 import { motion } from "framer-motion";
@@ -193,6 +193,15 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
         // if sending fails (connection removed, network error, etc)
         const messageToSend = newMessage;
 
+
+        // NEW — cancel any pending typing-timeout timer before sending.
+        // Without this, even after the message is sent, the leftover timer
+        // from the last keystroke would still fire 3 seconds later and
+        // emit a redundant "stop typing" — harmless functionally, but
+        // unnecessary noise/emit after the fact
+        if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+        }
         // tell everyone else in the room I've stopped typing, since
         // I'm about to actually send the message
         socket.emit("stop typing", selectedChat._id);
@@ -266,6 +275,48 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
 
     // fires on every keystroke in the input box — handles emitting
     // "typing" / "stop typing" socket events with a debounce-style delay
+    // const typingHandler = (e) => {
+    //     setNewMessage(e.target.value);
+
+    //     if (!socketConnected) return;
+
+    //     // only emit "typing" once when I START typing, not on every keystroke
+    //     if (!typing) {
+    //         setTyping(true);
+    //         socket.emit("typing", selectedChat._id);
+    //     }
+
+    //     // simple debounce: after 3 seconds of no new keystrokes, emit
+    //     // "stop typing" — this timer resets every time this handler runs
+    //     let lastTypingTime = new Date().getTime();
+    //     var timerLength = 3000;
+
+    //     setTimeout(() => {
+    //         var timeNow = new Date().getTime();
+    //         var timeDiff = timeNow - lastTypingTime;
+
+    //         if (timeDiff >= timerLength && typing) {
+    //             socket.emit("stop typing", selectedChat._id);
+    //             setTyping(false);
+    //         }
+    //     }, timerLength);
+    // };
+
+    // NEW — holds the currently active "stop typing" timer's ID.
+    // useRef (not useState) because this value never needs to show up
+    // in the UI — it just needs to persist across renders so we can
+    // cancel it later. Using useState here would cause unnecessary
+    // re-renders every time the timer changes.
+    const typingTimeoutRef = useRef(null);
+
+    // fires on every keystroke in the input box — handles emitting
+    // "typing" / "stop typing" socket events with a proper debounce
+    // (previously: every keystroke created a NEW setTimeout without
+    // cancelling the old one, so typing 5 characters left 5 separate
+    // timers running — each one independently firing "stop typing"
+    // 3 seconds after ITS OWN keystroke, which is why the console
+    // showed "stop typing" repeated multiple times even while still
+    // actively typing)
     const typingHandler = (e) => {
         setNewMessage(e.target.value);
 
@@ -277,20 +328,21 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
             socket.emit("typing", selectedChat._id);
         }
 
-        // simple debounce: after 3 seconds of no new keystrokes, emit
-        // "stop typing" — this timer resets every time this handler runs
-        let lastTypingTime = new Date().getTime();
-        var timerLength = 3000;
+        // FIX — cancel whatever timer was running from the previous
+        // keystroke before starting a new one. This guarantees only
+        // ONE timer is ever alive at a time, no matter how fast someone
+        // types.
+        if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+        }
 
-        setTimeout(() => {
-            var timeNow = new Date().getTime();
-            var timeDiff = timeNow - lastTypingTime;
-
-            if (timeDiff >= timerLength && typing) {
-                socket.emit("stop typing", selectedChat._id);
-                setTyping(false);
-            }
-        }, timerLength);
+        // start a fresh 3-second countdown — if no new keystroke comes
+        // in before this fires, THAT'S when we know typing has actually
+        // stopped, and emit "stop typing" exactly once
+        typingTimeoutRef.current = setTimeout(() => {
+            socket.emit("stop typing", selectedChat._id);
+            setTyping(false);
+        }, 3000);
     };
 
     return (

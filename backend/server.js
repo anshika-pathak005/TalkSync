@@ -7,36 +7,43 @@ import chatRoutes from "./routes/chatRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 import connectionRoutes from "./routes/connectionRoutes.js";
 import { notFound, errorHandler } from "./middlewares/errorMiddleWare.js";
-import { Socket } from "socket.io";
 import { Server } from "socket.io";
 import path from "path";
-
 import http from "http";
+import {
+    logNewConnection,
+    logSetup,
+    logJoinChat,
+    logNewMessage,
+    logMessageDeleted,
+    logTyping,
+    logStopTyping,
+} from "./utils/socketDebugLogger.js";
 
-dotenv.config();
+// ==========================================================
+// ENV + DB SETUP
+// ==========================================================
+dotenv.config(); // loads all secret keys from .env into process.env
 
-// this line loads all the secret key from the .env to process.env so that we can use it here in express server
 const app = express();
 connectDB();
 
-// to tell the server that we are expecting json data in the body of the request
-app.use(express.json());
+// ==========================================================
+// GLOBAL MIDDLEWARE
+// ==========================================================
+app.use(express.json()); // parse incoming requests with JSON payloads
 
-// enpoint for users
-// all the routes related to user would be in this file
-app.use('/api/user',userRoutes);
-
-// api endpoint for chats
-app.use('/api/chat',chatRoutes);
-
-// api  endpoint for messages
-app.use('/api/message',messageRoutes);
-
-// api  endpoint for connections
+// ==========================================================
+// API ROUTES
+// ==========================================================
+app.use('/api/user', userRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/message', messageRoutes);
 app.use('/api/connection', connectionRoutes);
 
-
-// ------------------ DEPLOYMENT SETUP ------------------
+// ==========================================================
+// DEPLOYMENT SETUP (serve React build in production)
+// ==========================================================
 const __dirname1 = path.resolve();
 
 if (process.env.NODE_ENV === 'production') {
@@ -58,65 +65,70 @@ if (process.env.NODE_ENV === 'production') {
     });
 }
 
-
-// error hadling middlewares
+// ==========================================================
+// ERROR HANDLING MIDDLEWARE (must come after routes)
+// ==========================================================
 app.use(notFound);
 app.use(errorHandler);
 
-// const server = app.listen(process.env.PORT, console.log(`Server is running on port ${process.env.PORT}`.green.bold));
-
+// ==========================================================
+// HTTP + SOCKET.IO SERVER SETUP
+// ==========================================================
 const server = http.createServer(app);
 server.listen(process.env.PORT, console.log(`Server is running on port ${process.env.PORT}`.green.bold));
 
-// const io = require('socket.io')(server,{
 const io = new Server(server, {
-    pingTimeout:60000,
+    pingTimeout: 60000,
     cors: {
         origin: process.env.NODE_ENV === 'production'
             ? false
             : "http://localhost:3000",
     },
     transports: ['websocket', 'polling'],
-})
+});
 
-io.on("connection",(socket) => {
-    console.log('connected to socket.io');
+// ==========================================================
+// SOCKET.IO EVENT HANDLERS
+// ==========================================================
+io.on("connection", (socket) => {
+    // logNewConnection(socket); // debug: comment/uncomment to toggle
 
-    // as soon as a user logins, we will make a new room for that particular user with the id of that user, and that means this user has joined this particular room and this room will be exclusive to this particular user oonly
+    // As soon as a user logs in, join a room named after their own user id.
+    // That room is exclusive to this user, so we can target them directly later.
+    socket.on('setup', (userData) => {
+        // logSetup(socket, userData); // debug: comment/uncomment to toggle
 
-    socket.on('setup',(userData) =>{
         socket.join(userData._id);
-        // console.log(userData._id);
         socket.emit("connected");
-    })
-
-    // socket for joining a chat
-    socket.on('join chat',(room) => {
-        socket.join(room);
-        console.log("User Joined Room: "+room);
     });
 
+    // join a specific chat's room
+    socket.on("join chat", (room) => {
+        // logJoinChat(socket, room); // debug: comment/uncomment to toggle
 
-    // socket for send message
-    socket.on('new message',(newMessageRecieved)=>{
+        socket.join(room);
+    });
+
+    // broadcast a new message to every other member of the chat
+    socket.on('new message', (newMessageRecieved) => {
+        // logNewMessage(newMessageRecieved); // debug: comment/uncomment to toggle
+
         var chat = newMessageRecieved.chat;
 
-        // if there is no user in that chat then
-        if(!chat.users) return console.log('chat.users not defined');
-
-        // now if that chat have the users and we are sending the message to it so then i want ki ye message mere alawa sabke pass chala jaye, single chat me bhi yhi logic hai ki i dont want wo message wapis mere pass aaye
-
         chat.users.forEach(user => {
-            if(user._id == newMessageRecieved.sender.id) return;
+            // don't send the message back to the sender
+            if (user._id.toString() === newMessageRecieved.sender._id.toString()) {
+                return;
+            }
 
-            // otherwise sent or emit this message
-            // means in this user._id room we are sending this particular newMessageRecived
-            socket.in(user._id).emit("message recieved",newMessageRecieved);
+            socket.in(user._id).emit("message recieved", newMessageRecieved);
         });
+    });
 
-    })
-
+    // broadcast a message deletion to every other member of the chat
     socket.on("message deleted", (updatedMessage) => {
+        // logMessageDeleted(updatedMessage); // debug: comment/uncomment to toggle
+
         var chat = updatedMessage.chat;
         if (!chat.users) return console.log('chat.users not defined');
 
@@ -126,12 +138,20 @@ io.on("connection",(socket) => {
         });
     });
 
-    // socket for typing indicator
-    socket.on("typing",(room)=> socket.in(room).emit("typing"));
-    socket.on("stop typing",(room)=> socket.in(room).emit("stop typing"));
+    // typing indicators
+    socket.on("typing", (room) => {
+        // logTyping(socket, room); // debug: comment/uncomment to toggle
 
-    socket.off("setup",()=>{
-        console.log("USER DISCONNECTED");
+        socket.in(room).emit("typing");
+    });
+
+    socket.on("stop typing", (room) => {
+        // logStopTyping(room); // debug: comment/uncomment to toggle
+
+        socket.in(room).emit("stop typing");
+    });
+
+    socket.off("setup", () => {
         socket.leave(userData._id);
     });
 });

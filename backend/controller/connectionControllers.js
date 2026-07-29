@@ -4,6 +4,7 @@ import { getConnectionBetween } from "../utils/connectionUtils.js";
 import { getIO } from "../utils/socketInstance.js";
 import { createSimpleNotification, upsertConnectionRequestNotification } from "../utils/notificationUtils.js";
 import Notification from "../Modals/notificationModel.js";
+import { isValidObjectId } from "../utils/validators.js";
 
 // send a connection request to another user
 export const sendConnectionRequest = asyncHandler(async (req, res) => {
@@ -12,6 +13,11 @@ export const sendConnectionRequest = asyncHandler(async (req, res) => {
     if (!userId) {
         res.status(400);
         throw new Error("userId is required");
+    }
+
+    if (!isValidObjectId(userId)) {
+        res.status(400);
+        throw new Error("Invalid userId");
     }
 
     if (userId === req.user._id.toString()) {

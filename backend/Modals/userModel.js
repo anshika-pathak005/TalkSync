@@ -12,6 +12,9 @@ const userModel = mongoose.Schema(
             // required:true,
             default:"https://i.pinimg.com/736x/8d/4e/22/8d4e220866ec920f1a57c3730ca8aa11.jpg"
         },
+        // bumped on logout to invalidate every outstanding refresh token at
+        // once, without needing a separate token-blacklist collection
+        tokenVersion: { type: Number, default: 0 },
     },
     {
         timestamps:true,

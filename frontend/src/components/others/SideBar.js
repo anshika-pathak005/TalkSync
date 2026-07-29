@@ -94,6 +94,10 @@ const SideBar = () => {
     }, []);
 
     const logoutHandler = () => {
+        // clears the refresh-token cookie + bumps tokenVersion server-side;
+        // fire-and-forget since the local session is cleared regardless
+        axios.post("/api/user/logout").catch(() => { });
+
         setUser(null);
         setChats([]);
         setSelectedChat(null);

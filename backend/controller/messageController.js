@@ -3,6 +3,7 @@ import Message from "../Modals/messageModel.js";
 import Chat from '../Modals/chatModel.js';
 import User from '../Modals/userModel.js';
 import { getConnectionBetween } from "../utils/connectionUtils.js";
+import { isNonEmptyString, isValidObjectId } from "../utils/validators.js";
 
 export const sendMessage = asyncHandler(
     async (req, res) => {
@@ -17,6 +18,13 @@ export const sendMessage = asyncHandler(
         // if these 2 are not there
         if (!content || !chatId) {
             // console.log("invalid data")
+            return res.sendStatus(400);
+        }
+
+        // content capped well above any real message length (basic
+        // storage/DoS guard); chatId must actually look like an ObjectId,
+        // otherwise Chat.findById below throws an uncaught CastError
+        if (!isNonEmptyString(content, { max: 5000 }) || !isValidObjectId(chatId)) {
             return res.sendStatus(400);
         }
 

@@ -2,7 +2,6 @@ import asyncHandler from "express-async-handler";
 import Chat from "../Modals/chatModel.js";
 import User from "../Modals/userModel.js";
 import Message from "../Modals/messageModel.js";
-import { generateToken } from "../config/generateToken.js";
 import { getConnectionBetween } from "../utils/connectionUtils.js";
 import { getIO } from "../utils/socketInstance.js";
 import { createSimpleNotification } from "../utils/notificationUtils.js";

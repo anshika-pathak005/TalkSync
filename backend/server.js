@@ -1,7 +1,12 @@
 import express from "express";
 import dotenv from "dotenv";
+import helmet from "helmet";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+import rateLimit from "express-rate-limit";
 import connectDB from "./config/db.js";
 import color from "colors";
+import { sanitizeInput } from "./middlewares/sanitizeMiddleware.js";
 import userRoutes from "./routes/userRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
@@ -35,7 +40,36 @@ connectDB();
 // ==========================================================
 // GLOBAL MIDDLEWARE
 // ==========================================================
+app.use(helmet({
+    // no hand-tuned Content-Security-Policy for this app yet — leaving
+    // helmet's default CSP on would risk breaking the CRA build's inline
+    // scripts/styles. The rest of helmet's headers (X-Content-Type-Options,
+    // X-Frame-Options, etc.) still apply.
+    contentSecurityPolicy: false,
+}));
+
+// same-origin assumption as the socket.io CORS config below: in production
+// this server also serves the React build itself, so there's no real
+// cross-origin caller to allow. credentials:true is required for the
+// refresh-token cookie to be sent/received at all.
+app.use(cors({
+    origin: process.env.NODE_ENV === 'production' ? false : "http://localhost:3000",
+    credentials: true,
+}));
+
+app.use(cookieParser());
 app.use(express.json()); // parse incoming requests with JSON payloads
+app.use(sanitizeInput); // strip Mongo-operator-shaped keys ($gt, $where, ...) out of body/params/query
+
+// generous global ceiling per IP — not meant to shape normal usage, just
+// to blunt scraping/abuse; the auth routes have their own tighter limiter
+app.use('/api', rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many requests, please try again later." },
+}));
 
 // ==========================================================
 // API ROUTES

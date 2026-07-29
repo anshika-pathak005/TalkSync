@@ -19,15 +19,15 @@ import { notFound, errorHandler } from "./middlewares/errorMiddleWare.js";
 import { Server } from "socket.io";
 import path from "path";
 import http from "http";
-import {
-    logNewConnection,
-    logSetup,
-    logJoinChat,
-    logNewMessage,
-    logMessageDeleted,
-    logTyping,
-    logStopTyping,
-} from "./utils/socketDebugLogger.js";
+// import {
+//     logNewConnection,
+//     logSetup,
+//     logJoinChat,
+//     logNewMessage,
+//     logMessageDeleted,
+//     logTyping,
+//     logStopTyping,
+// } from "./utils/socketDebugLogger.js";
 
 // ==========================================================
 // ENV + DB SETUP

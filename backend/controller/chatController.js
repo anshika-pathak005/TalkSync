@@ -4,6 +4,8 @@ import User from "../Modals/userModel.js";
 import Message from "../Modals/messageModel.js";
 import { generateToken } from "../config/generateToken.js";
 import { getConnectionBetween } from "../utils/connectionUtils.js";
+import { getIO } from "../utils/socketInstance.js";
+import { createSimpleNotification } from "../utils/notificationUtils.js";
 
 // in this accessChat there is going to happend 2 thing, if the chat already exists between 2 users then we will return that chat
 // otherwise we will create a new chat between the 2 users and return that
@@ -371,6 +373,20 @@ export const addToGroup = asyncHandler(
         });
 
         await Chat.findByIdAndUpdate(chatId, { latestMessage: populatedSystemMessage });
+
+        // NEW — notify the newly-added user directly
+        const notification = await createSimpleNotification({
+            recipientId: userId,
+            senderId: req.user._id,
+            type: "added_to_group",
+            chatId: chatId,
+            content: `${req.user.name} added you to ${chat.chatName}`,
+        });
+        const populatedNotification = await notification.populate([
+            { path: "sender", select: "name pic" },
+            { path: "chat", select: "_id chatName isGroupChat" },  // was: { path: "chat" }
+        ]);
+        getIO().in(userId).emit("notification", populatedNotification);
 
         res.json({ chat: added, systemMessage: populatedSystemMessage });
     }

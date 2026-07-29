@@ -58,6 +58,16 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
             // tell the socket server "I'm now watching this chat room",
             // so I receive real-time messages sent into it
             socket.emit("join chat", selectedChat._id);
+
+            // NEW — opening this chat means any pending message
+            // notification for it is now stale, clear it
+            axios.put(
+                `/api/notification/chat/${selectedChat._id}/read`,
+                {},
+                config
+            ).catch(() => { });
+            setNotification((prev) => prev.filter((n) => n.chat?._id !== selectedChat._id));
+
         } catch (error) {
             // even on failure we must stop the spinner, otherwise it
             // spins forever if the request fails
@@ -100,7 +110,7 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
     useEffect(() => {
         if (!selectedChat) return;
         setNotification((prev) =>
-            prev.filter((n) => n.chat._id !== selectedChat._id)
+            prev.filter((n) => n.chat?._id !== selectedChat._id)
         );
         // eslint-disable-next-line
     }, [selectedChat]);
@@ -115,34 +125,39 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
                 !selectedChatCompare ||
                 selectedChatCompare._id !== newMessageRecieved.chat._id
             ) {
-                setNotification((prev) => {
-                    const existing = prev.find(
-                        (n) => n.chat._id === newMessageRecieved.chat._id
-                    );
-                    if (existing) {
-                        // already have a notification for this chat — just
-                        // bump its unread count and update preview text
-                        return prev.map((n) =>
-                            n.chat._id === newMessageRecieved.chat._id
-                                ? {
-                                    ...n,
-                                    lastMessage: newMessageRecieved.content,
-                                    count: n.count + 1,
-                                }
-                                : n
-                        );
-                    }
-                    // first unread message for this chat — create a new entry
-                    return [
-                        {
-                            chat: newMessageRecieved.chat,
-                            sender: newMessageRecieved.sender,
-                            lastMessage: newMessageRecieved.content,
-                            count: 1,
-                        },
-                        ...prev,
-                    ];
-                });
+                // notification creation now handled entirely server-side
+                // (server.js emits a separate "notification" event) — just
+                // tell MyChats to refetch so the chat moves to top with its
+                // updated latestMessage
+                // setNotification((prev) => {
+                //     const existing = prev.find(
+                //         (n) => n.chat._id === newMessageRecieved.chat._id
+                //     );
+                //     if (existing) {
+                //         // already have a notification for this chat — just
+                //         // bump its unread count and update preview text
+                //         return prev.map((n) =>
+                //             n.chat._id === newMessageRecieved.chat._id
+                //                 ? {
+                //                     ...n,
+                //                     lastMessage: newMessageRecieved.content,
+                //                     count: n.count + 1,
+                //                 }
+                //                 : n
+                //         );
+                //     }
+                //     // first unread message for this chat — create a new entry
+                //     return [
+                //         {
+                //             chat: newMessageRecieved.chat,
+                //             sender: newMessageRecieved.sender,
+                //             lastMessage: newMessageRecieved.content,
+                //             count: 1,
+                //         },
+                //         ...prev,
+                //     ];
+                // });
+
                 // tells MyChats to refetch, so this chat moves to the top
                 // of the list with its updated latestMessage
                 setFetchChatAgain((prev) => !prev);
@@ -173,6 +188,46 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
     }, [selectedChatCompare]);
 
     useEffect(() => {
+        const handleNotification = (notification) => {
+            // if I'm currently viewing this exact chat, immediately mark
+            // it read server-side too, so the bell never shows a stale
+            // unread count for something I'm actively looking at
+            if (
+                notification.type === "new_message" &&
+                selectedChatCompare?._id === notification.chat?._id
+            ) {
+                axios.put(
+                    `/api/notification/chat/${notification.chat._id}/read`,
+                    {},
+                    { headers: { Authorization: `Bearer ${user.token}` } }
+                ).catch(() => { });
+                return; // don't add it to the bell at all
+            }
+
+            setNotification((prev) => {
+                // same row updated (count bumped) or a brand new one —
+                // either way it's the newest activity now, so move it to
+                // the front instead of leaving an updated row sitting
+                // wherever it happened to be, keeping the bell newest-first
+                const rest = prev.filter((n) => n._id !== notification._id);
+                return [notification, ...rest];
+            });
+        };
+
+        socket.on("notification", handleNotification);
+        return () => socket.off("notification", handleNotification);
+    }, [selectedChatCompare]);
+
+    useEffect(() => {
+        const handleNotificationRemoved = (notificationId) => {
+            setNotification((prev) => prev.filter((n) => n._id !== notificationId));
+        };
+
+        socket.on("notification removed", handleNotificationRemoved);
+        return () => socket.off("notification removed", handleNotificationRemoved);
+    }, []);
+
+    useEffect(() => {
         const handleDeletedForEveryone = (updatedMessage) => {
             if (selectedChatCompare?._id === updatedMessage.chat._id) {
                 setMessages((prev) =>
@@ -184,7 +239,7 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
         socket.on("message deleted", handleDeletedForEveryone);
         return () => socket.off("message deleted", handleDeletedForEveryone);
     }, [selectedChatCompare]);
-    
+
     // sends the message currently typed in the input box
     const sendMessage = async () => {
         if (!newMessage) return;

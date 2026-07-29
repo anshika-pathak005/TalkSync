@@ -15,6 +15,7 @@ import {
     Loader2,
     AlertCircle,
 } from "lucide-react";
+import { useToast } from '@chakra-ui/react'
 import ProfileModal from "./profileModal";
 import ChatLoading from "../Chatpage/ChatLoading";
 import UserListItem from "../UserList/UserListItem";
@@ -30,6 +31,7 @@ const SideBar = () => {
         notification,
         setNotification,
     } = ChatState();
+    const toast = useToast();
 
     const [search, setSearch] = useState("");
     const [searchResult, setSearchResult] = useState([]);
@@ -77,6 +79,19 @@ const SideBar = () => {
             setLoading(false);
         }
     }, [search]);
+
+    useEffect(() => {
+        const fetchNotifications = async () => {
+            try {
+                const { data } = await axios.get("/api/notification", authConfig);
+                setNotification(data);
+            } catch (error) {
+                console.log("Failed to fetch notifications", error);
+            }
+        };
+        fetchNotifications();
+        // eslint-disable-next-line
+    }, []);
 
     const logoutHandler = () => {
         setUser(null);
@@ -284,6 +299,64 @@ const SideBar = () => {
         };
     };
 
+    const handleNotificationClick = async (notify) => {
+        // "stale" comes back on the PUT response itself (e.g. a connection
+        // request that was cancelled/handled elsewhere before this got
+        // clicked) — reading it off `notify` was always undefined, so the
+        // stale toast never fired and this fell through to navigating to
+        // a request that no longer exists.
+        let readResult = null;
+        try {
+            const { data } = await axios.put(`/api/notification/${notify._id}/read`, {}, authConfig);
+            readResult = data;
+        } catch (error) {
+            console.log("Failed to mark notification read", error);
+        }
+
+        setNotification((prev) => prev.filter((n) => n._id !== notify._id));
+        setNotifOpen(false);
+
+        if (readResult?.stale) {
+            toast({
+                title: readResult.message,
+                status: "info",
+                duration: 3000,
+                isClosable: true,
+                position: "top-right",
+            });
+            return; // don't navigate anywhere for a stale notification
+        }
+
+        if (notify.type === "new_message" || notify.type === "added_to_group") {
+            // setSelectedChat(notify.chat);
+            await openChatFromNotification(notify.chat._id);
+        } else if (notify.type === "connection_request") {
+            history.push("/connections?tab=requests");
+        } else if (notify.type === "connection_accepted") {
+            history.push("/connections");
+        }
+    };
+
+    // since the notification's chat field is now trimmed (_id, chatName,
+    // isGroupChat only — see payload reduction), resolve the FULL chat
+    // object from what's already loaded locally before opening it
+    const openChatFromNotification = async (chatId) => {
+        let fullChat = chats.find((c) => c._id === chatId);
+
+        if (!fullChat) {
+            try {
+                const { data } = await axios.get("/api/chat", authConfig);
+                setChats(data);
+                fullChat = data.find((c) => c._id === chatId);
+            } catch (error) {
+                console.log("Failed to refetch chats for notification", error);
+            }
+        }
+
+        if (fullChat) setSelectedChat(fullChat);
+        history.push("/chats");
+    };
+
     return (
         <>
             {/* ── Navbar ───────────────────────────────────────────── */}
@@ -349,10 +422,24 @@ const SideBar = () => {
                                     className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl
                     shadow-card-lg border border-nordic/40 z-50 overflow-hidden"
                                 >
-                                    <div className="px-4 py-3 border-b border-nordic/30">
+                                    {/* <div className="px-4 py-3 border-b border-nordic/30">
                                         <p className="font-semibold text-sm text-viridian">
                                             Notifications
                                         </p>
+                                    </div> */}
+                                    <div className="px-4 py-3 border-b border-nordic/30 flex items-center justify-between">
+                                        <p className="font-semibold text-sm text-viridian">Notifications</p>
+                                        {notification.length > 0 && (
+                                            <button
+                                                onClick={async () => {
+                                                    await axios.put("/api/notification/read-all", {}, authConfig);
+                                                    setNotification([]);
+                                                }}
+                                                className="text-xs text-cerulean hover:text-viridian"
+                                            >
+                                                Mark all read
+                                            </button>
+                                        )}
                                     </div>
 
                                     {notification.length === 0 ? (
@@ -363,49 +450,29 @@ const SideBar = () => {
                                         <div className="max-h-72 overflow-y-auto">
                                             {notification.map((notify) => (
                                                 <button
-                                                    key={notify.chat._id}
-                                                    onClick={() => {
-                                                        setSelectedChat(notify.chat);
-                                                        setNotification(
-                                                            notification.filter(
-                                                                (n) => n.chat._id !== notify.chat._id
-                                                            )
-                                                        );
-                                                        setNotifOpen(false);
-                                                    }}
-                                                    className="w-full flex items-center gap-3 px-4 py-3
-                            hover:bg-swan transition-colors text-left"
+                                                    key={notify._id}
+                                                    onClick={() => handleNotificationClick(notify)}
+                                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-swan transition-colors text-left"
                                                 >
-                                                    {/* avatar */}
-                                                    <div className="w-9 h-9 rounded-full bg-nordic overflow-hidden
-                            shrink-0 flex items-center justify-center">
-                                                        {notify.sender.pic ? (
-                                                            <img
-                                                                src={notify.sender.pic}
-                                                                alt=""
-                                                                className="w-full h-full object-cover"
-                                                            />
+                                                    <div className="w-9 h-9 rounded-full bg-nordic overflow-hidden shrink-0 flex items-center justify-center">
+                                                        {notify.sender?.pic ? (
+                                                            <img src={notify.sender.pic} alt="" className="w-full h-full object-cover" />
                                                         ) : (
                                                             <span className="text-sm font-semibold text-viridian">
-                                                                {notify.sender.name?.charAt(0)?.toUpperCase()}
+                                                                {notify.sender?.name?.charAt(0)?.toUpperCase()}
                                                             </span>
                                                         )}
                                                     </div>
 
                                                     <div className="flex-1 min-w-0">
                                                         <p className="text-sm font-semibold text-viridian truncate">
-                                                            {notify.chat.isGroupChat
-                                                                ? notify.chat.chatName
-                                                                : getSender(user, notify.chat.users)}
+                                                            {notify.sender?.name}
                                                         </p>
-                                                        <p className="text-xs text-saltwater truncate">
-                                                            {notify.lastMessage}
-                                                        </p>
+                                                        <p className="text-xs text-saltwater truncate">{notify.content}</p>
                                                     </div>
 
-                                                    {notify.count > 0 && (
-                                                        <span className="text-[10px] font-bold bg-peacock text-white
-                              rounded-full px-2 py-0.5 shrink-0">
+                                                    {notify.count > 1 && (
+                                                        <span className="text-[10px] font-bold bg-peacock text-white rounded-full px-2 py-0.5 shrink-0">
                                                             {notify.count}
                                                         </span>
                                                     )}

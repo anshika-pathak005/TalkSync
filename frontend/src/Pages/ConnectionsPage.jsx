@@ -31,7 +31,7 @@ const getInitialTab = () => {
 };
 
 const ConnectionsPage = () => {
-  const { user, setChats, chats, setSelectedChat } = ChatState();
+  const { user, setChats, chats, setSelectedChat, setNotification } = ChatState();
   const history = useHistory();
 
   const [activeTab, setActiveTab] = useState(getInitialTab);
@@ -91,10 +91,22 @@ const ConnectionsPage = () => {
     }
   };
 
+  // accept/reject clear this request's notification server-side too, but
+  // the bell's state lives in context — remove it here so it doesn't keep
+  // showing a request we already just handled
+  const clearRequestNotification = (connectionId) => {
+    setNotification((prev) =>
+      prev.filter(
+        (n) => !(n.type === "connection_request" && String(n.connection) === String(connectionId))
+      )
+    );
+  };
+
   const acceptRequest = async (connectionId) => {
     try {
       setActionLoadingId(connectionId);
       await axios.put("/api/connection/accept", { connectionId }, authConfig);
+      clearRequestNotification(connectionId);
       await fetchAll();
     } catch (error) {
       console.log("Failed to accept request", error);
@@ -107,6 +119,7 @@ const ConnectionsPage = () => {
     try {
       setActionLoadingId(connectionId);
       await axios.put("/api/connection/reject", { connectionId }, authConfig);
+      clearRequestNotification(connectionId);
       setPending((prev) => prev.filter((r) => r._id !== connectionId));
     } catch (error) {
       console.log("Failed to reject request", error);
@@ -146,7 +159,7 @@ const ConnectionsPage = () => {
       className="w-11 h-11 rounded-full overflow-hidden border-2 border-nordic/40
       flex items-center justify-center shrink-0 bg-gradient-to-br from-peacock/20 to-cerulean/20"
     >
-      {person.pic ? (
+      {person?.pic ? (
         <img
           src={person.pic}
           alt={person.name}

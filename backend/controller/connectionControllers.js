@@ -1,6 +1,9 @@
 import asyncHandler from "express-async-handler";
 import Connection from "../Modals/connectionModel.js";
 import { getConnectionBetween } from "../utils/connectionUtils.js";
+import { getIO } from "../utils/socketInstance.js";
+import { createSimpleNotification, upsertConnectionRequestNotification } from "../utils/notificationUtils.js";
+import Notification from "../Modals/notificationModel.js";
 
 // send a connection request to another user
 export const sendConnectionRequest = asyncHandler(async (req, res) => {
@@ -38,6 +41,23 @@ export const sendConnectionRequest = asyncHandler(async (req, res) => {
             await existing.save();
 
             const populated = await existing.populate("sender receiver", "-password");
+
+            // Notification
+            const notification = await upsertConnectionRequestNotification({
+                recipientId: userId,
+                senderId: req.user._id,
+                type: "connection_request",
+                connectionId: existing._id, // reusing the existing connection document, so keep the same id
+                content: `${req.user.name} sent you a connection request`,
+            });
+
+            const populatedNotification = await notification.populate(
+                "sender",
+                "name pic"
+            );
+
+            getIO().in(userId).emit("notification", populatedNotification);
+
             return res.status(200).json(populated);
         }
     }
@@ -52,6 +72,17 @@ export const sendConnectionRequest = asyncHandler(async (req, res) => {
         "sender receiver",
         "-password"
     );
+
+    // NEW — notify the receiver in real time + persist it
+    const notification = await upsertConnectionRequestNotification({
+        recipientId: userId,
+        senderId: req.user._id,
+        type: "connection_request",
+        connectionId: connection._id, // newly created connection document, so use its id
+        content: `${req.user.name} sent you a connection request`,
+    });
+    const populatedNotification = await notification.populate("sender", "name pic");
+    getIO().in(userId).emit("notification", populatedNotification);
 
     res.status(201).json(fullConnection);
 });
@@ -86,6 +117,29 @@ export const acceptConnectionRequest = asyncHandler(async (req, res) => {
         "-password"
     );
 
+    // NEW — auto-mark-read: the receiver (me, right now) is handling
+    // this request directly, so clear its notification from my bell
+    await Notification.updateMany(
+        {
+            recipient: req.user._id,
+            type: "connection_request",
+            connection: connection._id,
+            isRead: false,
+        },
+        { isRead: true }
+    );
+
+    // NEW — notify the original sender that their request was accepted
+    const notification = await createSimpleNotification({
+        recipientId: connection.sender,
+        senderId: req.user._id,
+        type: "connection_accepted",
+        connectionId: connection._id,
+        content: `${req.user.name} accepted your connection request`,
+    });
+    const populatedNotification = await notification.populate("sender", "name pic");
+    getIO().in(connection.sender.toString()).emit("notification", populatedNotification);
+
     res.status(200).json(fullConnection);
 });
 
@@ -113,6 +167,18 @@ export const rejectConnectionRequest = asyncHandler(async (req, res) => {
     connection.status = "rejected";
     await connection.save();
 
+    // NEW — auto-mark-read, same reasoning as accept: I've handled it
+    // directly, so clear it from my own bell
+    await Notification.updateMany(
+        {
+            recipient: req.user._id,
+            type: "connection_request",
+            connection: connection._id,
+            isRead: false,
+        },
+        { isRead: true }
+    );
+
     res.status(200).json({ message: "Connection request rejected" });
 });
 
@@ -138,6 +204,21 @@ export const cancelConnectionRequest = asyncHandler(async (req, res) => {
     }
 
     await connection.deleteOne();
+
+    // NEW — the notification tied to this request is now meaningless,
+    // since the request itself no longer exists. Delete it outright
+    // (not just mark read) and tell the recipient live if they're online.
+    const staleNotification = await Notification.findOneAndDelete({
+        connection: connection._id,
+        type: "connection_request",
+    });
+
+    if (staleNotification) {
+        getIO().in(staleNotification.recipient.toString()).emit(
+            "notification removed",
+            staleNotification._id
+        );
+    }
 
     res.status(200).json({ message: "Connection request cancelled" });
 });
@@ -181,18 +262,22 @@ export const getMyConnections = asyncHandler(async (req, res) => {
         $or: [{ sender: req.user._id }, { receiver: req.user._id }],
     }).populate("sender receiver", "-password");
 
-    const formatted = connections.map((conn) => {
-        const otherUser =
-            conn.sender._id.toString() === req.user._id.toString()
-                ? conn.receiver
-                : conn.sender;
+    const formatted = connections
+        // drop rows where either side populated to null (stale/orphaned
+        // user reference) — nothing useful to show for those anyway
+        .filter((conn) => conn.sender && conn.receiver)
+        .map((conn) => {
+            const otherUser =
+                conn.sender._id.toString() === req.user._id.toString()
+                    ? conn.receiver
+                    : conn.sender;
 
-        return {
-            connectionId: conn._id,
-            user: otherUser,
-            connectedSince: conn.updatedAt,
-        };
-    });
+            return {
+                connectionId: conn._id,
+                user: otherUser,
+                connectedSince: conn.updatedAt,
+            };
+        });
 
     res.status(200).json(formatted);
 });
@@ -204,7 +289,10 @@ export const getPendingRequests = asyncHandler(async (req, res) => {
         status: "pending",
     }).populate("sender", "-password");
 
-    res.status(200).json(requests);
+    // sender can populate to null if that user account no longer exists
+    // (stale/orphaned reference) — drop those rather than sending them
+    // to the frontend as broken entries
+    res.status(200).json(requests.filter((r) => r.sender));
 });
 
 // outgoing pending requests (so search UI can show "Requested")
@@ -214,7 +302,8 @@ export const getSentRequests = asyncHandler(async (req, res) => {
         status: "pending",
     }).populate("receiver", "-password");
 
-    res.status(200).json(requests);
+    // same as above, but for the receiver side
+    res.status(200).json(requests.filter((r) => r.receiver));
 });
 
 // status between me and a specific user (for search result buttons)

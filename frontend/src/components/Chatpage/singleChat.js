@@ -260,6 +260,10 @@ const SingleChat = ({ fetchChatAgain, setFetchChatAgain }) => {
         // tell everyone else in the room I've stopped typing, since
         // I'm about to actually send the message
         socket.emit("stop typing", selectedChat._id);
+        // reset our own "am I typing" flag too — without this, typingHandler's
+        // `if (!typing)` guard stays permanently false after the first
+        // message, so it never re-emits "typing" for the next message
+        setTyping(false);
 
         // NOTE: removed the duplicate "const messageToSend = newMessage"
         // that was previously declared again inside the try block —

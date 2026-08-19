@@ -143,12 +143,13 @@ export const fetchChats = asyncHandler(
                         // case 2: user deleted, but new message came later
                         if (
                             chat.latestMessage &&
-                            chat.latestMessage.createdAt > deletedEntry.deletedAt
+                            new Date(chat.latestMessage.createdAt).getTime() >
+                            new Date(deletedEntry.deletedAt).getTime()
                         ) {
                             return true;
                         }
 
-                        // case 3: user deleted, but he reopened the chat so he should see in message list , yet with no messages
+                        // case 3: user deleted, but he reopened the chat manually (e.g. from Connections)
                         const manuallyReopened = chat.reopenedBy?.some(
                             (id) => id.toString() === req.user._id.toString()
                         );
@@ -520,6 +521,11 @@ export const deleteChatForMe = asyncHandler(async (req, res) => {
     } else {
         chat.deletedBy.push({ user: userId, deletedAt: new Date() });
     }
+
+    // remove this user from reopenedBy so it no longer forces visibility in fetchChats
+    chat.reopenedBy = chat.reopenedBy.filter(
+        (id) => id.toString() !== userId.toString()
+    );
 
     await chat.save();
 

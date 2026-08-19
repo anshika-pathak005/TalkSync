@@ -35,6 +35,7 @@ import http from "http";
 dotenv.config(); // loads all secret keys from .env into process.env
 
 const app = express();
+app.set("trust proxy", 1);
 connectDB();
 
 // ==========================================================

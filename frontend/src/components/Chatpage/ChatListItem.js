@@ -12,6 +12,7 @@ const ChatListItem = ({ chat }) => {
 
     // three-dot menu state — only relevant for 1:1 chats
     const [menuOpen, setMenuOpen] = useState(false);
+    const [menuDirection, setMenuDirection] = useState("down");
     const [profileOpen, setProfileOpen] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const menuRef = useRef(null);
@@ -34,6 +35,33 @@ const ChatListItem = ({ chat }) => {
         document.addEventListener("mousedown", handler);
         return () => document.removeEventListener("mousedown", handler);
     }, []);
+
+    const toggleMenu = (e) => {
+        e.stopPropagation();
+        if (deleting) return;
+
+        if (!menuOpen) {
+            if (menuRef.current) {
+                const triggerRect = menuRef.current.getBoundingClientRect();
+                const scrollContainer =
+                    menuRef.current.closest(".overflow-y-auto") || document.body;
+                const containerRect = scrollContainer.getBoundingClientRect();
+
+                const spaceBelow = containerRect.bottom - triggerRect.bottom;
+                const spaceAbove = triggerRect.top - containerRect.top;
+                const MENU_HEIGHT = 95;
+
+                if (spaceBelow < MENU_HEIGHT && spaceAbove > spaceBelow) {
+                    setMenuDirection("up");
+                } else {
+                    setMenuDirection("down");
+                }
+            }
+            setMenuOpen(true);
+        } else {
+            setMenuOpen(false);
+        }
+    };
 
     const handleDeleteChat = async (e) => {
         e.stopPropagation(); // don't let this also trigger setSelectedChat(chat)
@@ -73,6 +101,7 @@ const ChatListItem = ({ chat }) => {
             onClick={() => setSelectedChat(chat)}
             className={`relative flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer
         transition-all duration-200
+        ${menuOpen ? "z-30" : "z-0"}
         ${isActive
                     ? "bg-gradient-to-r from-peacock to-cerulean text-white shadow-3d"
                     : "bg-white hover:bg-swan text-viridian shadow-card"
@@ -132,10 +161,7 @@ const ChatListItem = ({ chat }) => {
                 {!chat.isGroupChat && (
                     <div ref={menuRef} className="relative">
                         <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (!deleting) setMenuOpen((v) => !v);
-                            }}
+                            onClick={toggleMenu}
                             disabled={deleting}
                             className={`p-1 rounded-lg transition-colors
         ${isActive ? "hover:bg-white/20" : "hover:bg-nordic/30"}
@@ -154,12 +180,16 @@ const ChatListItem = ({ chat }) => {
                         <AnimatePresence>
                             {menuOpen && (
                                 <motion.div
-                                    initial={{ opacity: 0, y: 4, scale: 0.97 }}
+                                    initial={{ opacity: 0, y: menuDirection === "up" ? 4 : -4, scale: 0.95 }}
                                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    exit={{ opacity: 0, y: 4, scale: 0.97 }}
+                                    exit={{ opacity: 0, y: menuDirection === "up" ? 4 : -4, scale: 0.95 }}
                                     transition={{ duration: 0.12 }}
-                                    className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl
-                    shadow-card-lg border border-nordic/40 z-50 overflow-hidden py-1"
+                                    className={`absolute right-0 w-44 bg-white rounded-xl
+                    shadow-card-lg border border-nordic/40 z-50 overflow-hidden py-1 text-left
+                    ${menuDirection === "up"
+                                            ? "bottom-full mb-1 origin-bottom-right"
+                                            : "top-full mt-1 origin-top-right"
+                                        }`}
                                 >
                                     <button
                                         onClick={handleViewProfile}

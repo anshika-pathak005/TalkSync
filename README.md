@@ -9,8 +9,7 @@
 ---
 
 ### Live Demo
-> **Live Demo Link:** [Insert Your Render Live Demo URL Here](https://talksync-chatapp.onrender.com)  
-*(Replace the placeholder URL above with your actual deployed Render URL)*
+> **Live Demo Link:** [Live Demo](https://talksync-21ho.onrender.com/)  
 
 ---
 
